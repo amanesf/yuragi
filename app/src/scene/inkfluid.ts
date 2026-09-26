@@ -13,7 +13,9 @@ import { NOISE, Pass, PingPong, target } from '../core/gl';
  *   R = 少女の後ろの墨   G = 少女の手前の墨（顔の周りでは必ず消える）
  *   B = 光（墨がかき乱されたせん断）   A = 遠景の墨（画面の縁のうねり）
  */
-export const RECT = { cx: 0, cy: 0.05, w: 3.0, h: 4.2 };
+// 横長の画面（パソコン）では場を横に広げ、左右の縁まで墨が届くようにする
+const WIDE = typeof window !== 'undefined' && window.innerWidth / window.innerHeight > 0.8;
+export const RECT = { cx: 0, cy: 0.05, w: WIDE ? 5.2 : 3.0, h: 4.2 };
 const W = 128;
 const H = Math.round((W * RECT.h) / RECT.w);
 export const MAX_IMPULSES = 20;

@@ -22,8 +22,8 @@ void main() {
   if (inside < 0.01 && d > 0.08) discard;
   float edge = exp(-pow(d / 0.035, 2.0));
   float vein = exp(-pow(p.x / 0.02, 2.0)) * inside * 0.6;
-  vec3 irid = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + hue + p.y * 0.4 + time * 0.05));
-  vec3 glass = mix(vec3(0.75, 0.95, 1.0), irid, 0.45);
+  float sh = 0.5 + 0.5 * sin(6.2831 * (hue + p.y * 0.4) + time * 0.3);
+  vec3 glass = mix(vec3(0.6, 0.98, 0.85), vec3(1.0, 0.88, 0.6), sh * 0.4);
   vec3 col = glass * inside * 0.22 + vec3(1.0, 0.9, 0.7) * edge * 0.9 + glass * vein * 0.4;
   gl_FragColor = vec4(col * alpha, 1.0);
 }`;

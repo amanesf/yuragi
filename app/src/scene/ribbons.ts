@@ -62,7 +62,9 @@ void main() {
   float streak = smoothstep(0.0, 0.05, flow) * smoothstep(0.35, 0.05, flow);
   // 金のきらめき
   float cell = floor(vS * 400.0 + floor(vSide * 3.0) * 17.0);
-  float spark = step(0.965, h(cell + seed * 13.0)) * (0.5 + 0.5 * sin(time * 6.0 + cell));
+  float cf = fract(vS * 400.0 + floor(vSide * 3.0) * 17.0) - 0.5;
+  float sf = fract(vSide * 1.5 + 0.5) - 0.5;
+  float spark = step(0.965, h(cell + seed * 13.0)) * (0.5 + 0.5 * sin(time * 6.0 + cell)) * exp(-(cf * cf + sf * sf * 4.0) * 30.0);
   vec3 col = mix(colA, colB, smoothstep(0.1, 0.9, vS + 0.2 * sin(time * 0.3 + seed)));
   // 絹糸の束：髪の毛ほどの細い光の糸が並び、糸ごとに揺れと明るさがずれる
   float threads = 0.0;

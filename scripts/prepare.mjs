@@ -67,3 +67,14 @@ const aura = Buffer.alloc(AW * AH * 3);
 for (let i = 0; i < AW * AH; i++) aura.set([near[i], far[i], disB[i]], i * 3);
 await sharp(aura, { raw: { width: AW, height: AH, channels: 3 } }).png().toFile(OUT + 'aura.png');
 console.log('ok', W, H);
+
+// title.png：筆文字（白）の明るさをそのまま透明度に。余白を詰める
+{
+  const { data: t, info: ti } = await sharp('assets-src/title_0.jpg').greyscale().raw().toBuffer({ resolveWithObject: true });
+  const out = Buffer.alloc(ti.width * ti.height * 4);
+  for (let i = 0; i < ti.width * ti.height; i++) {
+    const a = Math.max(0, Math.min(255, (t[i] - 40) * 1.4));
+    out.set([236, 255, 248, a], i * 4);
+  }
+  await sharp(out, { raw: { width: ti.width, height: ti.height, channels: 4 } }).trim({ threshold: 5 }).resize({ height: 900 }).png().toFile(OUT + 'title.png');
+}

@@ -51,8 +51,9 @@ void main() {
   // 縁に並ぶ斑（アゲハらしさ）
   float band = smoothstep(0.1, 0.0, abs(d + 0.07)) * inside;
   float spots = band * step(0.5, fract(a * 4.0 + 0.25));
-  vec3 irid = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + hue + p.x * 0.7 + p.y * 0.35 + time * 0.07));
-  vec3 glass = mix(vec3(0.4, 0.95, 0.9), irid, 0.55);
+  // 翡翠と金の硝子（世界の色にそろえる）
+  float sh = 0.5 + 0.5 * sin(6.2831 * (hue + p.x * 0.6 + p.y * 0.3) + time * 0.4);
+  vec3 glass = mix(vec3(0.3, 0.95, 0.78), vec3(1.0, 0.85, 0.5), sh * 0.45);
   vec3 col = glass * inside * 0.32 + glass * veins * 0.8 + vec3(1.0, 0.86, 0.55) * edge * 1.1 + vec3(1.0, 0.85, 0.5) * spots * 0.5;
   col *= alpha * (1.0 + flash);
   gl_FragColor = vec4(col, 1.0);

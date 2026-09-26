@@ -54,6 +54,8 @@ void main() {
   vec3 milk = mix(tMilk * 0.7, tMilk, smoothstep(0.3, 1.2, k.b));
   float CA = cr * (1.0 - A * 0.55);
   vec3 outc = ink * A * (1.0 - CA) + milk * CA + light * em * (1.0 - soft * 0.7);
+  // 白飛びさせない（クリープはミルク色のまま）
+  outc = min(outc, vec3(0.92));
   gl_FragColor = vec4(outc, max(A, CA) );
 }`;
 

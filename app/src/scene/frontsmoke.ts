@@ -66,7 +66,7 @@ export class FrontSmoke {
         transparent: true, depthWrite: false,
         blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
       });
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 4.4), mat);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(rect.z + 0.2, 4.4), mat);
       m.position.set(0, 0.05, z);
       m.renderOrder = order;
       this.mats.push(mat);

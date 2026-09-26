@@ -98,6 +98,11 @@ void main() {
   float chroma = max(col.r, max(col.g, col.b)) - min(col.r, min(col.g, col.b));
   // くすんだ色ほど強く持ち上げる（肌や光が飽和しすぎないように）
   col = mix(vec3(lp), col, 1.0 + (popSat - 1.0) * (1.0 - smoothstep(0.1, 0.6, chroma)));
+  // 和紙：ごく薄い繊維と漉きむら
+  vec2 wp = vUv * res;
+  float fib = h(floor(wp / vec2(7.0, 1.6))) * 0.6 + h(floor(wp / vec2(1.6, 9.0)) + 17.0) * 0.4;
+  float blot = h(floor(wp / 60.0)) * 0.5 + h(floor(wp / 23.0) + 5.0) * 0.5;
+  col *= 0.975 + 0.035 * fib + 0.02 * (blot - 0.5);
   if (!(col.r < 1e4) || !(col.g < 1e4) || !(col.b < 1e4)) col = vec3(0.0);
   gl_FragColor = vec4(max(col, 0.0), 1.0);
 }`;

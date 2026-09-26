@@ -67,6 +67,9 @@ void main() {
   d *= smoothstep(0.18, 0.5, length((vW.xy - vec2(0.0, 0.68)) * vec2(1.0, 0.8))) * (vW.z > 0.05 ? 1.0 : 0.85) + 0.0;
   // 暗い背景でも読めるよう、縁は明るい煙色、芯は漆黒
   // 流体の墨と同じ材質（薄墨→漆黒）
+  // 胴の前は通らない（黒い棒が体を横切らないように）
+  float torso = (1.0 - smoothstep(0.22, 0.42, abs(vW.x))) * smoothstep(-0.75, -0.45, vW.y) * (1.0 - smoothstep(0.45, 0.7, vW.y)) * step(0.0, vW.z);
+  d *= 1.0 - torso * 0.9;
   float core = smoothstep(0.45, 1.0, d);
   vec3 col = mix(tWash * 0.75, tCore, clamp(core * 1.1 + d * 0.35, 0.0, 1.0));
   float a = clamp(d * opacity * 1.25, 0.0, 0.95);

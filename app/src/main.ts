@@ -38,6 +38,7 @@ girlTex.generateMipmaps = true;
 girlTex.minFilter = THREE.LinearMipmapLinearFilter;
 girlTex.anisotropy = 4;
 
+FLOW.frect.value.set(RECT.cx, RECT.cy, RECT.w, RECT.h);
 const tone = applyTone(CONFIG.ink.tone === 'shift' ? 'jade' : CONFIG.ink.tone);
 const clearCol = new THREE.Color(tone.edge[0] * 0.8, tone.edge[1] * 0.8, tone.edge[2] * 0.8);
 const scene = new THREE.Scene();
