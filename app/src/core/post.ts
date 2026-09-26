@@ -42,7 +42,7 @@ const FINAL = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D src, glow, mask, raw;
 uniform vec2 res;
-uniform float time, flash, sat, contrast, clarity, girlBright, girlSat;
+uniform float time, flash, sat, contrast, clarity, girlBright, girlSat, faceY;
 float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main() {
   vec2 c = vUv - 0.5;
@@ -69,7 +69,9 @@ void main() {
   vec3 cb = (texture2D(mask, vUv + vec2(px.x, 0.)).rgb + texture2D(mask, vUv - vec2(px.x, 0.)).rgb
            + texture2D(mask, vUv + vec2(0., px.y)).rgb + texture2D(mask, vUv - vec2(0., px.y)).rgb) * 0.25 / max(m, 1e-3);
   clean += (clean - cb) * 0.5 * step(0.99, m);
-  vec3 girl = mix(texture2D(raw, vUv).rgb, clean, clarity);
+  // くっきりさせるのは顔と上半身だけ。下半身は手前の墨をそのまま通す
+  float upper = smoothstep(faceY - 0.42, faceY - 0.12, vUv.y);
+  vec3 girl = mix(texture2D(raw, vUv).rgb, clean, clarity * upper);
   // 少女の明るさと彩度（暗い背景の中で、イラストとして浮かび上がるように）
   float gl0 = dot(girl, vec3(0.299, 0.587, 0.114));
   girl = mix(vec3(gl0), girl, girlSat) * girlBright;
@@ -118,7 +120,7 @@ export class Post {
     this.final = new Pass(FINAL, {
       src: { value: this.dofB.texture }, glow: { value: this.glowRT.texture }, mask: { value: this.maskRT.texture },
       raw: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
-      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 },
+      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, faceY: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 },
     });
   }
 
@@ -134,6 +136,9 @@ export class Post {
 
   render(r: THREE.WebGLRenderer, cam: THREE.PerspectiveCamera, focus: number, time: number, flash: number, sat: number, contrast: number, clarity: number) {
     this.final.u.clarity.value = clarity;
+    // 顔の画面上の高さ
+    const f = new THREE.Vector3(0, 0.66, 0).project(cam);
+    this.final.u.faceY.value = f.y * 0.5 + 0.5;
     this.final.u.girlBright.value = CONFIG.grade.girlBright;
     this.final.u.girlSat.value = CONFIG.grade.girlSat;
     this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.glowRT, 0, false);

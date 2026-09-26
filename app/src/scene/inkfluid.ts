@@ -188,7 +188,7 @@ void main() {
 
 const DYE = COMMON + NOISE + /* glsl */ `
 uniform sampler2D vel, dye, aura;
-uniform float dt, time, edgeEmit, girlEmit, speed, drop, clearing, faceClear;
+uniform float dt, time, edgeEmit, girlEmit, speed, drop, clearing, faceClear, pool;
 uniform vec2 viewHalf, viewCenter;
 uniform vec4 girlRect;
 uniform vec4 impA[${MAX_IMPULSES}];
@@ -214,7 +214,13 @@ void main() {
   // 筋状に：細かいノイズで途切れさせ、糸として流れ出す
   float strand = smoothstep(0.5, 0.75, fbm(w * vec2(14.0, 6.0) - vec2(0.0, t * 0.4)));
   k.r += halo * strand * girlEmit * 2.2 * dt;
-  k.g += halo * strand * girlEmit * 1.8 * dt * smoothstep(0.3, 0.7, a.b);
+  k.g += halo * strand * girlEmit * 2.6 * dt * smoothstep(0.3, 0.7, a.b);
+
+  // 下半身は墨に沈む：裾から足元にかけて、濃い墨が湧き続ける（手前 G と後ろ R）
+  float lowY = smoothstep(-0.15, -0.95, w.y) * (1.0 - smoothstep(0.45, 0.75, abs(w.x)));
+  float poolN = smoothstep(0.42, 0.7, fbm(w * vec2(4.0, 2.5) + vec2(t * 0.05, -t * 0.12)));
+  k.g += lowY * poolN * pool * 2.2 * dt;
+  k.r += lowY * poolN * pool * 1.6 * dt;
 
   // 触れた墨と光
   for (int i = 0; i < ${MAX_IMPULSES}; i++) {
@@ -264,7 +270,7 @@ export class InkFluid {
   private readonly dyePass: Pass;
   readonly impulses: Impulse[] = [];
   /** 監督（main）が毎フレーム決める値 */
-  ambient = 1; girlEmit = 1; edgeEmit = 1; drop = 0; clearing = 9; faceClear = 1;
+  ambient = 1; girlEmit = 1; edgeEmit = 1; drop = 0; clearing = 9; faceClear = 1; pool = 0;
   readonly viewHalf = new THREE.Vector2(0.55, 1.1);
   readonly viewCenter = new THREE.Vector2(0, 0.05);
 
@@ -294,7 +300,7 @@ export class InkFluid {
     this.subtract = new Pass(SUBTRACT, { ...base, vel: { value: null }, pres: { value: null } });
     this.dyePass = new Pass(DYE, {
       ...base, ...shared, texel, vel: { value: null }, dye: { value: null },
-      edgeEmit: { value: 1 }, girlEmit: { value: 1 }, drop: { value: 0 }, clearing: { value: 9 }, faceClear: { value: 1 },
+      edgeEmit: { value: 1 }, girlEmit: { value: 1 }, drop: { value: 0 }, clearing: { value: 9 }, faceClear: { value: 1 }, pool: { value: 0 },
       impA, impC,
     });
   }
@@ -363,6 +369,7 @@ export class InkFluid {
     d.dye.value = this.dye.read.texture;
     d.edgeEmit.value = this.edgeEmit * k.amount * k.periphery;
     d.girlEmit.value = this.girlEmit * k.amount * k.dissolve;
+    d.pool.value = this.pool * k.amount * k.pool;
     d.drop.value = this.drop; d.clearing.value = this.clearing; d.faceClear.value = this.faceClear;
     this.dyePass.render(r, this.dye.write); this.dye.swap();
   }

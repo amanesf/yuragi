@@ -35,10 +35,12 @@ void main() {
   // 顔を避ける
   float face = smoothstep(0.22, 0.55, length((vW.xy - vec2(0.0, 0.68)) * vec2(1.0, 0.8)));
   // 画面の上ほど薄く（煙は下に溜まる）
-  float low = mix(0.55, 1.0, smoothstep(0.9, -0.6, vW.y));
+  float low = mix(0.35, 1.5, smoothstep(0.7, -0.9, vW.y));
   // 体の上では薄く（イラストを濁らせない）。煙は主に周辺に
   float sil = texture2D(aura, (vW.xy - girlRect.xy) / girlRect.zw + 0.5).g;
-  float a = dens * face * low * amount * reveal * (1.0 - 0.75 * sil);
+  // 体の上では上半身だけ薄く、下半身はむしろ濃く（墨に沈む）
+  float lowBody = smoothstep(0.1, -0.7, vW.y);
+  float a = dens * face * low * amount * reveal * mix(1.0 - 0.6 * sil, 1.0 + 0.6 * sil, lowBody);
   vec3 col = mix(vec3(0.16, 0.18, 0.19), vec3(0.02, 0.025, 0.03), smoothstep(0.5, 1.0, dens));
   gl_FragColor = vec4(col * a, a);
 }`;
@@ -71,7 +73,7 @@ export class FrontSmoke {
     this.mats.forEach((m, i) => {
       const u = m.uniforms;
       u.time.value = time; u.reveal.value = reveal; u.dye.value = this.dye();
-      u.amount.value = [0.5, 0.35][i] * CONFIG.ink.frontSmoke * (1 + climax * 0.6);
+      u.amount.value = [0.85, 0.5][i] * CONFIG.ink.frontSmoke * (1 + climax * 0.6);
       setWindUniforms(u, world);
       u.drift.value = world.drift;
     });

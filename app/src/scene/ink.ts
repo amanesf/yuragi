@@ -16,8 +16,8 @@ uniform float time, paper;
 ${NOISE}
 void main() {
   vec2 p = (vUv - 0.5) * vec2(1.0, 1.35);
-  float mist = exp(-dot(p * vec2(2.4, 1.5), p * vec2(2.4, 1.5)) * 1.6);
-  vec3 col = mix(vec3(0.16, 0.18, 0.19), vec3(0.64, 0.66, 0.66), mist) * paper;
+  float mist = exp(-dot(p * vec2(1.7, 1.1), p * vec2(1.7, 1.1)) * 1.4);
+  vec3 col = mix(vec3(0.1, 0.11, 0.12), vec3(0.62, 0.64, 0.64), mist) * paper;
   vec2 q = vec2(fbm(p * 2.0 + time * 0.01), fbm(p * 2.0 + 7.3 - time * 0.012));
   float wash = fbm(p * 2.6 + q * 1.5);
   col *= 1.0 - smoothstep(0.45, 0.8, wash) * 0.35;

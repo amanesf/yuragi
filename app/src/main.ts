@@ -235,6 +235,7 @@ function direct(dt: number) {
   fluid.ambient = 1 + climax * 2.5;
   fluid.girlEmit = (1 + climax * 2.0) * world.reveal;
   fluid.edgeEmit = 1 + climax * 1.5;
+  fluid.pool = (1 + climax * 0.8) * world.reveal;
   if (climax > 0.4 && Math.random() < dt * 1.5 * climax) {
     const a = Math.random() * Math.PI * 2;
     fluid.push({ x: Math.cos(a) * 0.5, y: 0.05 + Math.sin(a) * 0.9, radius: 0.3, dx: 0, dy: 0.02, swirl: (Math.random() - 0.5) * 0.3, radial: 0, ink: 0, light: 1.5, life: 1.5 });
@@ -337,7 +338,7 @@ function frame(now: number) {
   girl.mode = 0;
   camera.layers.set(0);
 
-  post.strength = 0.95 + climax * 0.5 + flash * 0.4;
+  post.strength = 0.7 + climax * 0.5 + flash * 0.4;
   post.render(renderer, camera, camera.position.length(), t, flash, CONFIG.grade.saturation, CONFIG.grade.contrast, CONFIG.grade.clarity);
   requestAnimationFrame(frame);
 }
