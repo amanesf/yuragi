@@ -124,12 +124,10 @@ window.addEventListener('pointermove', (e) => {
   if (sp > 3) { vx *= 3 / sp; vy *= 3 / sp; }
   p.moved += Math.hypot(e.clientX - p.x, e.clientY - p.y) / window.innerWidth;
   p.x = e.clientX; p.y = e.clientY; p.t = now;
-  windImpulse += THREE.MathUtils.clamp(vx, -3, 3) * 0.08;
-  windImpulseZ += THREE.MathUtils.clamp(vy, -3, 3) * 0.03;
   if (now - p.last > 35) {
     p.last = now;
     // なぞる：筆で墨を引く
-    fluid.push({ x: b.x, y: b.y, radius: 0.09, dx: vx * 0.12, dy: vy * 0.12, swirl: 0, radial: 0, ink: 1.2 * CONFIG.ink.touchInk, light: 1.5, life: 0.35 });
+    fluid.push({ x: b.x, y: b.y, radius: 0.09, dx: vx * 0.12, dy: vy * 0.12, swirl: 0, radial: 0, ink: 1.2 * CONFIG.ink.touchInk, light: 0, life: 0.35 });
   }
   Object.assign(world.touch, { x: b.x, y: b.y, z: 0.3 });
   touchS = Math.max(touchS, 0.7);
@@ -142,11 +140,8 @@ const release = (e: PointerEvent) => {
   // 叩く：墨に一滴。輪が広がり、渦になり、縁が光る
   const w = toWorld(p.x, p.y);
   const spin = Math.random() < 0.5 ? -1 : 1;
-  fluid.push({ x: w.x, y: w.y, radius: 0.16, dx: 0, dy: 0, swirl: 0.12 * spin, radial: 0.06, ink: 5 * CONFIG.ink.touchInk, light: 6, life: 0.7 });
-  burst = 1; flash = Math.min(1, flash + 0.35); touchS = 1.1;
-  windImpulse += (Math.random() - 0.5) * 0.5;
-  flies.spawn(w);
-  climaxKick += 0.25;
+  // タップは流体をかき混ぜるだけ（光・蝶・高まりは起こさない）
+  fluid.push({ x: w.x, y: w.y, radius: 0.16, dx: 0, dy: 0, swirl: 0.14 * spin, radial: 0.07, ink: 5 * CONFIG.ink.touchInk, light: 0, life: 0.7 });
 };
 window.addEventListener('pointerup', release);
 window.addEventListener('pointercancel', release);
@@ -252,11 +247,12 @@ function direct(dt: number) {
     const held = t - p.down;
     if (held > 0.4 && p.moved < 0.03 && Math.random() < dt * 8) {
       const w = toWorld(p.x, p.y);
-      fluid.push({ x: w.x, y: w.y, radius: 0.12 + Math.min(held, 3) * 0.04, dx: 0, dy: 0, swirl: 0.1, radial: 0, ink: 0.8, light: 2, life: 0.3 });
+      fluid.push({ x: w.x, y: w.y, radius: 0.12 + Math.min(held, 3) * 0.04, dx: 0, dy: 0, swirl: 0.1, radial: 0, ink: 0.8 * CONFIG.ink.touchInk, light: 0, life: 0.3 });
     }
   }
   touchS *= Math.exp(-dt / 1.1);
-  world.touch.s = touchS;
+  // 触れても光は寄せない（タップは流体だけに効く）
+  world.touch.s = 0;
   flash *= Math.exp(-dt / 0.4);
   burst *= Math.exp(-dt / 0.5);
 }

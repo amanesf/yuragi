@@ -33,7 +33,7 @@ export const CONFIG = {
     /** 3D に漂う墨の粒の煙。 */
     motes: 1,
     /** 触れたときに落ちる墨。 */
-    touchInk: 1,
+    touchInk: 0,
   },
   light: {
     /** ふだんの光の帯（細く）。 */
