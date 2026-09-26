@@ -99,15 +99,15 @@ void main() {
   float fl = length(fv); if (fl > 0.05) fv *= 0.05 / fl;
   // 縁は下へ垂れる（墨が滴るように）
   float dripN = fbm(vec2(vUv.x * 60.0, time * 0.12));
-  vec2 drip = vec2(0.0, -0.035) * smoothstep(0.35, 0.8, dripN) * melt * (0.5 + fbm(vUv * vec2(40.0, 8.0) + time * 0.05));
+  vec2 drip = vec2(0.0, -0.05) * smoothstep(0.3, 0.75, dripN) * melt * (0.5 + fbm(vUv * vec2(40.0, 8.0) + time * 0.05));
   vec2 muv = vUv - fw * 0.45 * body - (fv * 0.5 + drip) * melt;
   vec4 c = texture2D(map, muv);
   // 流れの方向へ尾を引く（最大値で残す＝布が墨の筋になる）
   // 流れの下流へ尾を引く。尾は布の色から墨の色へ変わっていく（布が墨になる）
   float tail = 0.0;
   for (int i = 1; i <= 7; i++) {
-    vec4 s = texture2D(map, muv + (fv * 0.3 + drip * 1.2) * melt * float(i));
-    tail = max(tail, s.a * (1.0 - float(i) * 0.12));
+    vec4 s = texture2D(map, muv + (fv * 0.45 + drip * 1.4) * melt * float(i));
+    tail = max(tail, s.a * (1.0 - float(i) * 0.09));
   }
   tail *= melt * (0.55 + 0.45 * fbm(vUv * vec2(30.0, 12.0) - time * 0.1));
   float inkTail = max(tail - c.a, 0.0);
@@ -138,14 +138,19 @@ void main() {
           + fbm(vUv * vec2(17.0, 26.0) + vec2(t * 0.02, -t * 0.07)) * 0.4;
   float edgeNear = 1.0 - au.r;
   // 墨が触れている所は溶けやすい
-  float inkHere = texture2D(fdye, fuv).r;
+  vec4 fd = texture2D(fdye, fuv);
+  float inkHere = max(fd.r, fd.g);
   // 溶けるのは輪郭の近くだけ（内側は決して抜けない）
-  float dth = dw * edgeNear * (1.2 + inkHere * 0.4);
+  // 溶ける幅を広げる：輪郭のすぐ近く（near）＋少し内側（far）。墨が触れている所はさらに深く
+  float edgeFar = 1.0 - au.g;
+  float dth = dw * (edgeNear * 1.3 + edgeFar * 0.9 + inkHere * 0.7 * (edgeNear + edgeFar));
   float keep = smoothstep(dth - 0.04, dth + 0.04, dn);
   a *= mix(1.0, keep, step(0.001, dw));
   if (a < 0.03) discard;
   // 溶けかけの縁は墨に染まる
-  float stain = dw * (1.0 - smoothstep(dth, dth + 0.22, dn));
+  float stain = dw * (1.0 - smoothstep(dth, dth + 0.3, dn));
+  // 外から墨が染み込む：流体の墨が触れている縁は墨色に
+  stain = max(stain, clamp(inkHere * 1.2, 0.0, 1.0) * dw * (edgeNear + edgeFar * 0.7));
   col = mix(col, vec3(0.018, 0.022, 0.028), clamp(stain * 1.4, 0.0, 0.92));
   float bleedRim = exp(-pow((dn - dth) / 0.025, 2.0)) * dw;
   // 墨の世界に馴染ませる：影は青へ、全体はわずかに沈める

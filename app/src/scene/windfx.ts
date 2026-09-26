@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
-import { windAt, type World } from './common';
+import { orderForZ, windAt, type World } from './common';
 
 /**
  * 風を見せる。硝子の花びらと、突風のときに一瞬走る空気の筋。
@@ -105,6 +105,7 @@ export class WindFx {
       p.pos.x += Math.sin(w.time * 1.7 + p.rot.y * 3) * 0.02 * dt;
       p.rot.addScaledVector(p.spin, dt * (1 + Math.abs(wx) * 2));
       p.mesh.position.copy(p.pos);
+      p.mesh.renderOrder = orderForZ(p.pos.z);
       p.mesh.rotation.set(p.rot.x, p.rot.y, p.rot.z);
       const fade = Math.min(1, p.age / 1.2, (p.life - p.age) / 2);
       p.mat.uniforms.alpha.value = Math.max(0, fade) * w.reveal;

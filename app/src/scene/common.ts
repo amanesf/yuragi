@@ -24,6 +24,18 @@ export interface World {
   drift: number;
 }
 
+/**
+ * 墨の層は深度を書かないので、手前にあるものは描く順番で前後を決める。
+ * z（ワールド）から、どの墨の層の後に描くべきかを返す。
+ */
+export function orderForZ(z: number) {
+  if (z < 0.28) return 15.5;  // 手前の墨（G, z=0.28）より奥
+  if (z < 0.45) return 16.5;  // 前面の墨煙1（z=0.45）より奥
+  if (z < 1.05) return 20;    // 墨の帯より手前、前面の墨煙2（z=1.05）より奥
+  if (z < 1.35) return 44.5;  // カメラ直前の墨（z=1.35）より奥
+  return 46;
+}
+
 /** 場所 x での風（突風の前線がまだ来ていない所は吹いていない）。 */
 export function windAt(w: World, x: number) {
   const k = (w.gust.front - x) * w.gust.dir;

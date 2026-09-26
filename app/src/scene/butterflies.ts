@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
-import type { World } from './common';
+import { orderForZ, type World } from './common';
 
 /**
  * 硝子の蝶。3D の空間を、少女のまわりを縫うように飛ぶ。
@@ -150,6 +150,7 @@ export class Butterflies {
       f.pos.y += (gliding ? -0.03 : Math.max(0, flap) * 0.05) * dt;
 
       f.root.position.copy(f.pos);
+      f.root.traverse((o) => { o.renderOrder = orderForZ(f.pos.z); });
       // 体の軸を画面上の進行方向へ。わずかに傾けて立体感を出す
       f.root.rotation.set(Math.sin(w.time * 0.9 + f.seed) * 0.35, Math.sin(w.time * 0.6 + f.seed * 2) * 0.3, Math.atan2(f.vel.y, f.vel.x) - Math.PI / 2);
       const open = 0.05 + 1.15 * (0.5 + 0.5 * flap);
