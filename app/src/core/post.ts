@@ -1,82 +1,150 @@
 import * as THREE from 'three';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { CONFIG } from '../config';
 import { Pass, target } from './gl';
 
 /**
- * 絵づくりの最後の段。ブルームは閾値を高く置き、静かな部分は暗く鋭いまま残す
- * （閾値を下げるのがこの絵を壊す最も簡単な方法である）。
- * そのあと、ハイライトの肩・周辺減光・わずかな色収差・和紙の粒。
+ * 絵づくりの最後の段。三つの原則：
+ *  1. にじむのは光だけ。光るもの（帯・粒・蝶・花びら）は別の板に描き、それだけにブルームをかける。
+ *     少女と墨はにじませない＝黒が締まり、線がくっきりする。
+ *  2. 少女は原画のまま。色調整・粒状・色収差は背景と演出だけにかけ、少女にはわずかなシャープだけ。
+ *  3. 奥行きでピントを変える。少女の立つ面に合わせ、手前は大きく、奥はやわらかくぼける。
  */
+const DOF = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D src, depth, mask;
+uniform vec2 dir, res;
+uniform float near, far, focus, maxR;
+float viewZ(float d) { return (near * far) / ((far - near) * d - far); }
+float coc(vec2 uv) {
+  float z = -viewZ(texture2D(depth, uv).x);
+  float dz = z - focus;
+  // 手前は強く、奥は弱く
+  float c = dz < 0.0 ? -dz * 1.5 : dz * 0.28;
+  return clamp(c, 0.0, 1.0) * (1.0 - texture2D(mask, uv).a);
+}
+void main() {
+  float c0 = coc(vUv);
+  float r = c0 * maxR;
+  if (r < 0.5) { gl_FragColor = texture2D(src, vUv); return; }
+  vec4 acc = vec4(0.0); float wsum = 0.0;
+  for (int i = -6; i <= 6; i++) {
+    float t = float(i) / 6.0;
+    vec2 uv = vUv + dir * t * r / res;
+    // 手前にくっきりしたもの（少女）を、ぼけた奥がにじみ込ませないように
+    float w = exp(-t * t * 2.0) * max(coc(uv), 0.15);
+    acc += texture2D(src, uv) * w; wsum += w;
+  }
+  gl_FragColor = acc / max(wsum, 1e-4);
+}`;
+
 const FINAL = /* glsl */ `
 varying vec2 vUv;
-uniform sampler2D src;
+uniform sampler2D src, glow, mask, raw;
 uniform vec2 res;
-uniform float time, flash, curtain, sat;
-float h(vec2 p);
-float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+uniform float time, flash, sat, contrast, clarity, girlBright, girlSat;
 float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main() {
   vec2 c = vUv - 0.5;
   float r2 = dot(c, c);
-  vec2 ca = c * r2 * 0.018;
-  vec3 col = vec3(texture2D(src, vUv + ca).r, texture2D(src, vUv).g, texture2D(src, vUv - ca).b);
-  // ハイライトの肩：1 を越える光だけをなめらかに寝かせる
-  vec3 over = max(col - 0.85, 0.0);
-  col = min(col, 0.85) + over / (1.0 + over * 1.6);
-  float l0 = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(vec3(l0), col, sat);
-  // 深い墨はわずかに青へ
-  float l = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(col, col * vec3(0.86, 0.97, 1.08), smoothstep(0.35, 0.0, l) * 0.6);
-  col = mix(col, col * col * (3.0 - 2.0 * col), 0.25);
-  col *= mix(1.0, 0.5, smoothstep(0.08, 0.5, r2 * 1.6));
-  col += flash * vec3(0.3, 0.9, 0.75) * (1.0 - r2 * 2.0) * 0.25;
-  vec2 g = floor(vUv * res);
-  col += (h(g + fract(time * 7.13) * 431.0) - 0.5) * 0.045;
-  float fiber = h(floor(vUv * res / vec2(6.0, 1.5)));
-  col *= 0.985 + 0.03 * fiber;
-  // 開幕の墨の幕：中央から外へ退く
-  if (curtain < 1.0) {
-    vec2 sp = c * vec2(res.x / res.y, 1.0);
-    float n = vn(vUv * 5.0) * 0.5 + vn(vUv * 11.0) * 0.3 + vn(vUv * 23.0) * 0.2;
-    float f = length(sp) * 1.6 + (n - 0.5) * 0.7;
-    float cov = smoothstep(curtain * 1.6 - 0.08, curtain * 1.6 + 0.02, f);
-    float rim = exp(-pow((f - curtain * 1.6) / 0.03, 2.0)) * step(0.01, curtain);
-    col = mix(col, vec3(0.008, 0.01, 0.013) + n * 0.02, cov);
-    col += vec3(0.25, 0.9, 0.75) * rim * 0.5;
-  }
+  // マスク板には少女だけがきれいに描かれている（rgb は乗算済み、a がシルエット）
+  vec4 mk = texture2D(mask, vUv);
+  float m = mk.a;
+
+  // --- 背景と演出：映画的に（色収差・コントラスト・深い黒） ---
+  vec2 ca = c * r2 * 0.014;
+  vec3 bg = vec3(texture2D(src, vUv + ca).r, texture2D(src, vUv).g, texture2D(src, vUv - ca).b);
+  float l = dot(bg, vec3(0.299, 0.587, 0.114));
+  bg = mix(vec3(l), bg, sat);
+  bg = mix(bg, bg * vec3(0.9, 0.98, 1.06), smoothstep(0.35, 0.0, l) * 0.5);
+  // コントラスト：黒を沈め、中間を締める
+  bg = clamp((bg - 0.5) * contrast + 0.5, 0.0, 10.0);
+  bg = mix(bg, bg * bg * (3.0 - 2.0 * bg), 0.35);
+  bg += (h(floor(vUv * res) + fract(time * 7.13) * 431.0) - 0.5) * 0.04;
+
+  // --- 少女：原画のまま、わずかにシャープ ---
+  // 手前の墨や煙に濁らされていない少女を主に使う（clarity）。少しだけ手前の墨を残して馴染ませる
+  vec2 px = 1.0 / res;
+  vec3 clean = mk.rgb / max(m, 1e-3);
+  vec3 cb = (texture2D(mask, vUv + vec2(px.x, 0.)).rgb + texture2D(mask, vUv - vec2(px.x, 0.)).rgb
+           + texture2D(mask, vUv + vec2(0., px.y)).rgb + texture2D(mask, vUv - vec2(0., px.y)).rgb) * 0.25 / max(m, 1e-3);
+  clean += (clean - cb) * 0.5 * step(0.99, m);
+  vec3 girl = mix(texture2D(raw, vUv).rgb, clean, clarity);
+  // 少女の明るさと彩度（暗い背景の中で、イラストとして浮かび上がるように）
+  float gl0 = dot(girl, vec3(0.299, 0.587, 0.114));
+  girl = mix(vec3(gl0), girl, girlSat) * girlBright;
+
+  vec3 col = mix(bg, girl, m);
+  // 光（ブルーム込み）を足す。少女の上では控えめに
+  vec3 gl = texture2D(glow, vUv).rgb;
+  col += gl * (1.0 - m * 0.35);
+  // ハイライトの肩
+  vec3 over = max(col - 0.9, 0.0);
+  col = min(col, 0.9) + over / (1.0 + over * 1.4);
+  // 周辺減光（少女には弱く）
+  col *= mix(1.0, 0.45, smoothstep(0.08, 0.5, r2 * 1.6) * (1.0 - m * 0.6));
+  col += flash * vec3(0.3, 0.9, 0.75) * (1.0 - r2 * 2.0) * 0.2;
   gl_FragColor = vec4(col, 1.0);
 }`;
 
 export class Post {
+  /** 本描画（少女・墨・背景）。深度つき（ピント用） */
   hdr: THREE.WebGLRenderTarget;
+  /** 光るものだけ（ブルームをかける） */
+  glowRT: THREE.WebGLRenderTarget;
+  /** 少女のシルエット */
+  maskRT: THREE.WebGLRenderTarget;
+  private readonly dofA: THREE.WebGLRenderTarget;
+  private readonly dofB: THREE.WebGLRenderTarget;
   private readonly bloom: UnrealBloomPass;
+  private readonly dof: Pass;
   private readonly final: Pass;
 
   constructor(w: number, h: number) {
     this.hdr = target(w, h, true, true);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.6, 0.35, 0.92);
+    this.hdr.samples = 0;
+    this.hdr.depthTexture = new THREE.DepthTexture(w, h);
+    this.glowRT = target(w, h, true, true);
+    this.maskRT = target(w, h, true, true);
+    this.maskRT.samples = 0;
+    this.dofA = target(w, h);
+    this.dofB = target(w, h);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.9, 0.55, 0.0);
+    this.dof = new Pass(DOF, {
+      src: { value: null }, depth: { value: this.hdr.depthTexture }, mask: { value: this.maskRT.texture },
+      dir: { value: new THREE.Vector2(1, 0) }, res: { value: new THREE.Vector2(w, h) },
+      near: { value: 0.05 }, far: { value: 50 }, focus: { value: 3.5 }, maxR: { value: 10 },
+    });
     this.final = new Pass(FINAL, {
-      src: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
-      time: { value: 0 }, flash: { value: 0 }, curtain: { value: 1 }, sat: { value: 1 },
+      src: { value: this.dofB.texture }, glow: { value: this.glowRT.texture }, mask: { value: this.maskRT.texture },
+      raw: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
+      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 },
     });
   }
 
   resize(w: number, h: number) {
-    this.hdr.setSize(w, h);
+    for (const t of [this.hdr, this.glowRT, this.maskRT, this.dofA, this.dofB]) t.setSize(w, h);
     this.bloom.setSize(w, h);
     (this.final.u.res.value as THREE.Vector2).set(w, h);
+    (this.dof.u.res.value as THREE.Vector2).set(w, h);
+    this.dof.u.maxR.value = Math.round(h / 90);
   }
 
   set strength(v: number) { this.bloom.strength = v; }
 
-  render(r: THREE.WebGLRenderer, time: number, flash: number, curtain = 1, sat = 1) {
-    this.final.u.sat.value = sat;
-    this.final.u.curtain.value = curtain;
-    this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.hdr, 0, false);
-    this.final.u.time.value = time;
-    this.final.u.flash.value = flash;
+  render(r: THREE.WebGLRenderer, cam: THREE.PerspectiveCamera, focus: number, time: number, flash: number, sat: number, contrast: number, clarity: number) {
+    this.final.u.clarity.value = clarity;
+    this.final.u.girlBright.value = CONFIG.grade.girlBright;
+    this.final.u.girlSat.value = CONFIG.grade.girlSat;
+    this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.glowRT, 0, false);
+    const d = this.dof.u;
+    d.near.value = cam.near; d.far.value = cam.far; d.focus.value = focus;
+    d.src.value = this.hdr.texture; (d.dir.value as THREE.Vector2).set(1, 0);
+    this.dof.render(r, this.dofA);
+    d.src.value = this.dofA.texture; (d.dir.value as THREE.Vector2).set(0, 1);
+    this.dof.render(r, this.dofB);
+    const u = this.final.u;
+    u.time.value = time; u.flash.value = flash; u.sat.value = sat; u.contrast.value = contrast;
     this.final.render(r, null);
   }
 }

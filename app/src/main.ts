@@ -6,7 +6,7 @@ import { Butterflies } from './scene/butterflies';
 import { GIRL_H, GIRL_W, type World } from './scene/common';
 import { Girl } from './scene/girl';
 import { Glitter } from './scene/glitter';
-import { Backdrop } from './scene/ink';
+import { Backdrop, Backlight } from './scene/ink';
 import { DYE_TEXEL, InkFluid, RECT } from './scene/inkfluid';
 import { InkLayers } from './scene/inklayers';
 import { Ribbons } from './scene/ribbons';
@@ -32,6 +32,10 @@ const [girlTex, regionTex, auraTex] = await Promise.all([
   loader.loadAsync(`${base}assets/aura.png`),
 ]);
 for (const t of [girlTex, regionTex, auraTex]) { t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; }
+// 少女は 2K。縮小表示でちらつかないようミップマップを使う
+girlTex.generateMipmaps = true;
+girlTex.minFilter = THREE.LinearMipmapLinearFilter;
+girlTex.anisotropy = 4;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
@@ -40,15 +44,16 @@ const world: World = { time: 0, wind: { x: 0, z: 0 }, touch: { x: 0, y: 0, z: 0.
 const girlRect = new THREE.Vector4(0, 0, GIRL_W * 1.3, GIRL_H * 1.3);
 const fluid = new InkFluid(auraTex, girlRect);
 const backdrop = new Backdrop();
+const backlight = new Backlight();
 const inkLayers = new InkLayers(() => fluid.dye.read.texture, DYE_TEXEL);
 const girl = new Girl(girlTex, regionTex, auraTex);
-const frontSmoke = new FrontSmoke(() => fluid.dye.read.texture, new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h));
+const frontSmoke = new FrontSmoke(() => fluid.dye.read.texture, new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h), auraTex, girlRect);
 const ribbons = new Ribbons();
 const inkRibbons = new InkRibbons();
 const windFx = new WindFx();
 const glitter = new Glitter();
 const flies = new Butterflies();
-scene.add(backdrop.mesh, inkLayers.group, frontSmoke.group, inkRibbons.group, windFx.group, girl.mesh, ribbons.group, glitter.points, flies.group);
+scene.add(backdrop.mesh, backlight.mesh, inkLayers.group, frontSmoke.group, inkRibbons.group, windFx.group, girl.mesh, ribbons.group, glitter.points, flies.group);
 
 let W = 1, H = 1;
 const post = new Post(1, 1);
@@ -304,12 +309,36 @@ function frame(now: number) {
   title.classList.toggle('rest', t >= 13);
   hint.classList.toggle('on', t > 12 && t - lastInput > 14 && Math.floor(t / 20) % 3 === 0);
 
+  backlight.update(t, world.reveal);
+  // 光るものは光の板（layer 1）だけに描く
+  for (const g of [ribbons.group, glitter.points, flies.group, windFx.group]) g.traverse((o) => o.layers.set(1));
+
+  // 1) 本描画：少女・墨・背景
+  camera.layers.set(0);
+  girl.mode = 0;
   renderer.setRenderTarget(post.hdr);
-  renderer.setClearColor(0x0c0e10);
+  renderer.setClearColor(0x0c0e10, 1);
   renderer.clear();
   renderer.render(scene, camera);
-  post.strength = 0.75 + climax * 0.5 + flash * 0.4;
-  post.render(renderer, t, flash, 1, CONFIG.grade.saturation);
+  // 2) 光の板：光るものだけ。少女は黒い遮蔽物として描き、後ろを通る光を隠す
+  camera.layers.set(1);
+  girl.mode = 1;
+  renderer.setRenderTarget(post.glowRT);
+  renderer.setClearColor(0x000000, 1);
+  renderer.clear();
+  renderer.render(scene, camera);
+  // 3) 少女だけを、手前の墨や煙なしで（シルエット＝アルファ）
+  camera.layers.set(2);
+  girl.mode = 0;
+  renderer.setRenderTarget(post.maskRT);
+  renderer.setClearColor(0x000000, 0);
+  renderer.clear();
+  renderer.render(scene, camera);
+  girl.mode = 0;
+  camera.layers.set(0);
+
+  post.strength = 0.95 + climax * 0.5 + flash * 0.4;
+  post.render(renderer, camera, camera.position.length(), t, flash, CONFIG.grade.saturation, CONFIG.grade.contrast, CONFIG.grade.clarity);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

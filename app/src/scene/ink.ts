@@ -24,6 +24,37 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
+/** 少女の背の後ろの、淡い後光。暗い背景からシルエットを浮かせる。 */
+const HALO = /* glsl */ `
+varying vec2 vUv;
+uniform float time, amount;
+void main() {
+  vec2 p = (vUv - vec2(0.5, 0.56)) * vec2(1.0, 0.62);
+  float d = length(p);
+  float a = exp(-d * d * 9.0) * amount * (0.9 + 0.1 * sin(time * 0.7));
+  vec3 col = mix(vec3(0.55, 0.62, 0.62), vec3(0.75, 0.95, 0.9), exp(-d * d * 30.0) * 0.4);
+  gl_FragColor = vec4(col * a, a);
+}`;
+
+export class Backlight {
+  readonly mesh: THREE.Mesh;
+  private readonly mat: THREE.ShaderMaterial;
+  constructor() {
+    this.mat = new THREE.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: HALO, uniforms: { time: { value: 0 }, amount: { value: 0.5 } },
+      transparent: true, depthWrite: false,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    });
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.4), this.mat);
+    this.mesh.position.set(0, 0.2, -0.7);
+    this.mesh.renderOrder = 7;
+  }
+  update(time: number, reveal: number) {
+    this.mat.uniforms.time.value = time;
+    this.mat.uniforms.amount.value = 0.42 * CONFIG.grade.backlight * reveal;
+  }
+}
+
 export class Backdrop {
   readonly mesh: THREE.Mesh;
   private readonly mat: THREE.ShaderMaterial;

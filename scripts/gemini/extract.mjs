@@ -16,6 +16,6 @@ Keep the same framing, scale and position of the girl, full body, portrait orien
 
 const parts = await generate(model, [{ text: prompt }, await imagePart('assets-src/source.jpg')], {
   responseModalities: ['IMAGE', 'TEXT'],
-  imageConfig: { aspectRatio: '9:16' },
+  imageConfig: { aspectRatio: '9:16', imageSize: process.env.SIZE ?? '1K' },
 });
 console.log(await saveImages(parts, out));

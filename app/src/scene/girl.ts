@@ -74,8 +74,8 @@ void main() {
 }`;
 
 const FRAG = /* glsl */ `
-uniform sampler2D map, aura, fvel, fdye;
-uniform float time, reveal, rim, dissolve, speed, warp, aura2;
+uniform sampler2D map, aura, fvel, fdye, regions;
+uniform float time, reveal, rim, dissolve, speed, warp, aura2, mode;
 uniform vec4 frect;
 varying vec2 vUv;
 varying vec2 vWorld;
@@ -88,7 +88,11 @@ void main() {
   vec3 au0 = texture2D(aura, (vUv - 0.5) / 1.3 + 0.5).rgb;
   float melt = clamp(au0.b * 2.0, 0.0, 1.0) * (1.0 - smoothstep(0.35, 0.85, au0.r)) * dissolve * (1.0 - head0);
   // 体全体がゆるく流れに引かれる（初版のとろけ）。袖・裾・毛先ほど強く
-  float body = (0.08 + 0.92 * clamp(au0.b * 2.0, 0.0, 1.0)) * dissolve * (1.0 - head0) * warp;
+  // 揺れと同じ重み：袖は外側と下、袴は裾、髪は毛先。手・鞄・本・胴は動かさない
+  vec3 rg = texture2D(regions, vUv).rgb;
+  float body = max(max(rg.b * smoothstep(560.0, 900.0, px0.y) * smoothstep(110.0, 260.0, abs(px0.x - 384.0)),
+                       rg.g * smoothstep(900.0, 1300.0, px0.y) * 0.8),
+                   rg.r * smoothstep(480.0, 1000.0, px0.y)) * dissolve * (1.0 - head0) * warp;
   vec2 fuv = (vWorld - frect.xy) / frect.zw + 0.5;
   vec2 fv = texture2D(fvel, fuv).xy * frect.zw / vec2(${GIRL_W.toFixed(4)}, ${GIRL_H.toFixed(4)});
   vec2 fw = fv; float fwl = length(fw); if (fwl > 0.05) fw *= 0.05 / fwl;
@@ -135,7 +139,8 @@ void main() {
   float edgeNear = 1.0 - au.r;
   // 墨が触れている所は溶けやすい
   float inkHere = texture2D(fdye, fuv).r;
-  float dth = dw * (0.35 + 1.1 * edgeNear + inkHere * 0.5);
+  // 溶けるのは輪郭の近くだけ（内側は決して抜けない）
+  float dth = dw * edgeNear * (1.2 + inkHere * 0.4);
   float keep = smoothstep(dth - 0.04, dth + 0.04, dn);
   a *= mix(1.0, keep, step(0.001, dw));
   if (a < 0.03) discard;
@@ -144,8 +149,7 @@ void main() {
   col = mix(col, vec3(0.018, 0.022, 0.028), clamp(stain * 1.4, 0.0, 0.92));
   float bleedRim = exp(-pow((dn - dth) / 0.025, 2.0)) * dw;
   // 墨の世界に馴染ませる：影は青へ、全体はわずかに沈める
-  float l = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(col, col * vec3(0.85, 0.97, 1.08), smoothstep(0.45, 0.05, l) * 0.7);
+  // 原画の色はいじらない（イラストとして見せる）
   float sweep = 0.5 + 0.5 * sin(time * 0.6 + vUv.y * 5.0);
   col += vec3(0.25, 0.95, 0.8) * (edge * (1.0 - dw) + bleedRim * 0.8) * rim * (0.35 + 0.65 * sweep);
   col += vec3(0.3, 0.9, 0.8) * vFlex * 0.05 * sweep;
@@ -155,6 +159,7 @@ void main() {
   float face = 1.0 - smoothstep(0.6, 1.0, length((px0 - vec2(388.0, 240.0)) / vec2(95.0, 110.0)));
   col += vec3(0.25, 1.0, 0.78) * (edge * 0.8 + 0.12 * (1.0 - au0.r * 0.5)) * (0.3 + 0.7 * band) * (0.4 + 0.6 * breath) * aura2 * (1.0 - face);
   col += vec3(0.35, 1.0, 0.85) * edgeGlow * 0.45;
+  if (mode > 0.5) { gl_FragColor = vec4(vec3(0.0), a); return; }
   gl_FragColor = vec4(col, a);
 }`;
 
@@ -170,14 +175,19 @@ export class Girl {
         map: { value: map }, regions: { value: regions },
         time: { value: 0 }, wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() },
         reveal: { value: 0 }, rim: { value: 1 }, aura: { value: aura },
-        dissolve: { value: CONFIG.ink.dissolve }, warp: { value: 1 }, aura2: { value: 0 },
+        dissolve: { value: CONFIG.ink.dissolve }, warp: { value: 1 }, aura2: { value: 0 }, mode: { value: 0 },
         fvel: { value: null }, fdye: { value: null }, frect: { value: new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h) }, speed: { value: CONFIG.ink.speed }, sway: { value: CONFIG.wind.sway }, hairAmp: { value: CONFIG.wind.hair },
       },
       transparent: true, depthWrite: true, side: THREE.DoubleSide,
     });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.renderOrder = 10;
+    // 本描画・光の板（遮蔽物として黒く）・マスクの三つのパスすべてに出る
+    this.mesh.layers.enable(1);
+    this.mesh.layers.enable(2);
   }
+
+  set mode(v: number) { this.material.uniforms.mode.value = v; }
 
   update(time: number, world: World, reveal: number, rim: number, fvel: THREE.Texture, fdye: THREE.Texture, aura2: number) {
     const u = this.material.uniforms;

@@ -18,8 +18,8 @@ varying vec3 vW;
 uniform float time, amount, speed, seed, reveal;
 ${WIND_GLSL}
 uniform float drift;
-uniform sampler2D dye;
-uniform vec4 rect;
+uniform sampler2D dye, aura;
+uniform vec4 rect, girlRect;
 ${NOISE}
 void main() {
   float t = time * speed * 0.04 + seed;
@@ -36,7 +36,9 @@ void main() {
   float face = smoothstep(0.22, 0.55, length((vW.xy - vec2(0.0, 0.68)) * vec2(1.0, 0.8)));
   // 画面の上ほど薄く（煙は下に溜まる）
   float low = mix(0.55, 1.0, smoothstep(0.9, -0.6, vW.y));
-  float a = dens * face * low * amount * reveal;
+  // 体の上では薄く（イラストを濁らせない）。煙は主に周辺に
+  float sil = texture2D(aura, (vW.xy - girlRect.xy) / girlRect.zw + 0.5).g;
+  float a = dens * face * low * amount * reveal * (1.0 - 0.75 * sil);
   vec3 col = mix(vec3(0.16, 0.18, 0.19), vec3(0.02, 0.025, 0.03), smoothstep(0.5, 1.0, dens));
   gl_FragColor = vec4(col * a, a);
 }`;
@@ -44,7 +46,7 @@ void main() {
 export class FrontSmoke {
   readonly group = new THREE.Group();
   private readonly mats: THREE.ShaderMaterial[] = [];
-  constructor(dye: () => THREE.Texture, rect: THREE.Vector4) {
+  constructor(dye: () => THREE.Texture, rect: THREE.Vector4, aura: THREE.Texture, girlRect: THREE.Vector4) {
     this.dye = dye;
     for (const [z, sp, op, order] of [[0.45, 1.0, 0.5, 18], [1.05, 1.6, 0.35, 44]] as const) {
       const mat = new THREE.ShaderMaterial({
@@ -52,6 +54,7 @@ export class FrontSmoke {
         uniforms: {
           time: { value: 0 }, amount: { value: op }, speed: { value: sp }, seed: { value: z * 7.0 }, reveal: { value: 0 },
           wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, drift: { value: 0 }, dye: { value: null }, rect: { value: rect },
+          aura: { value: aura }, girlRect: { value: girlRect },
         },
         transparent: true, depthWrite: false,
         blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,

@@ -16,6 +16,7 @@ uniform float time, seed, turns, radius, y0, y1, width, speed, reveal, widthScal
 ${WIND_GLSL}
 uniform vec4 touch;
 varying float vS, vSide, vFade;
+varying float vFace;
 
 vec3 path(float s) {
   float a = seed * 6.2831 + s * turns * 6.2831 + time * speed;
@@ -40,6 +41,7 @@ void main() {
   float w = width * widthScale * pow(sin(3.1416 * s), 0.6) * (0.6 + 0.4 * sin(s * 11.0 + time * 0.8 + seed * 9.0));
   p += n * side * w;
   vFade = smoothstep(s, s + 0.08, reveal * 1.1);
+  vFace = mix(1.0, 0.04 + 0.96 * smoothstep(0.15, 0.45, length((p.xy - vec2(0.0, 0.66)) * vec2(1.0, 0.8))), step(0.0, p.z));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }`;
 
@@ -47,6 +49,7 @@ const FRAG = /* glsl */ `
 uniform float time, seed, intensity;
 uniform vec3 colA, colB;
 varying float vS, vSide, vFade;
+varying float vFace;
 float h(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 void main() {
   float core = exp(-vSide * vSide * 3.5);
@@ -61,7 +64,7 @@ void main() {
   vec3 col = mix(colA, colB, smoothstep(0.1, 0.9, vS + 0.2 * sin(time * 0.3 + seed)));
   float b = (0.55 * core + 0.35 * fib * (0.3 + core)) * (0.5 + 1.4 * streak);
   vec3 c = col * b + vec3(1.0, 0.8, 0.45) * spark * 1.4 * (1.0 - abs(vSide));
-  c *= smoothstep(0.0, 0.06, vS) * smoothstep(1.0, 0.94, vS) * vFade * intensity;
+  c *= smoothstep(0.0, 0.06, vS) * smoothstep(1.0, 0.94, vS) * vFade * vFace * intensity;
   gl_FragColor = vec4(c, 1.0);
 }`;
 

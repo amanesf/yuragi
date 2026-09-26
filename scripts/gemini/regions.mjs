@@ -15,6 +15,6 @@ Flat fills only: no outlines, no shading, no texture, no anti-aliasing noise.`;
 
 const parts = await generate(model, [{ text: prompt }, await imagePart(src)], {
   responseModalities: ['IMAGE', 'TEXT'],
-  imageConfig: { aspectRatio: '9:16' },
+  imageConfig: { aspectRatio: '9:16', imageSize: process.env.SIZE ?? '1K' },
 });
 console.log(await saveImages(parts, 'assets-src/regions_'));

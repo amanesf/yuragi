@@ -3,7 +3,7 @@
 //  regions.png  : 揺れの重み。R=髪 G=袴 B=袖（ぼかして滑らかにする。継ぎ目で絵が裂けないように）
 import sharp from 'sharp';
 
-const SRC = 'assets-src/extract_0.jpg';
+const SRC = 'assets-src/upscale2k_0.jpg';
 const REG = 'assets-src/regions_0.jpg';
 const OUT = 'app/public/assets/';
 

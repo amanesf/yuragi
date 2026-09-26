@@ -37,6 +37,8 @@ void main() {
   vec3 d = p - touch.xyz;
   float f = exp(-dot(d, d) / 0.12) * touch.w;
   p += vec3(-d.y, d.x, 0.0) * f * 0.9 + d * f * burst * 1.4;
+  // 顔の前には粒を置かない
+  float faceAvoid = smoothstep(0.16, 0.42, length((p.xy - vec2(0.0, 0.66)) * vec2(1.0, 0.8)));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
   float big = step(0.95, fract(seed.x * 17.0));
@@ -45,7 +47,7 @@ void main() {
   float tw = 0.5 + 0.5 * sin(time * (1.5 + 5.0 * fract(seed.z * 9.0)) + seed.w * 50.0);
   vCol = fract(seed.y * 5.3) < 0.45 ? vec3(1.0, 0.78, 0.4) : (fract(seed.y * 5.3) < 0.8 ? vec3(0.35, 1.0, 0.8) : vec3(0.85, 0.95, 1.0));
   float edge = smoothstep(1.7, 1.3, abs(y));
-  vA = level * tw * edge * smoothstep(seed.x * 0.7, seed.x * 0.7 + 0.3, reveal) * (0.5 + f * 2.0);
+  vA = mix(1.0, faceAvoid, step(-0.25, p.z)) * level * tw * edge * smoothstep(seed.x * 0.7, seed.x * 0.7 + 0.3, reveal) * (0.5 + f * 2.0);
 }`;
 
 const FRAG = /* glsl */ `
