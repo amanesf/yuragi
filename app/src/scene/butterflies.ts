@@ -58,12 +58,12 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-const _fwd = new THREE.Vector3(), _tmp = new THREE.Vector3(), _lift = new THREE.Vector3(0, 0.35, 0);
+const _fwd = new THREE.Vector3(), _tmp = new THREE.Vector3();
 const _dummy = new THREE.Object3D();
 
 interface Fly {
   root: THREE.Group; L: THREE.Mesh; R: THREE.Mesh; mat: THREE.ShaderMaterial;
-  pos: THREE.Vector3; vel: THREE.Vector3; prevVel: THREE.Vector3; goal: THREE.Vector3;
+  pos: THREE.Vector3; vel: THREE.Vector3; prevVel: THREE.Vector3; heading: THREE.Vector3; goal: THREE.Vector3;
   phase: number; freq: number; age: number; life: number; glide: number; seed: number; ambient: boolean; flyby: boolean;
 }
 
@@ -111,7 +111,7 @@ export class Butterflies {
     const side = Math.random() < 0.5 ? -1 : 1;
     const pos = at ? at.clone() : new THREE.Vector3(side * 0.75, -0.6 + Math.random() * 1.3, 0.1 + Math.random() * 0.4);
     this.flies.push({
-      root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), prevVel: new THREE.Vector3(), goal: this.goal(),
+      root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), prevVel: new THREE.Vector3(), heading: new THREE.Vector3(-side, 0, 0), goal: this.goal(),
       phase: Math.random() * 10, freq: 2.8 + Math.random() * 1.2, age: 0,
       life: ambient ? 1e9 : 10 + Math.random() * 6, glide: 0, seed: Math.random() * 100, ambient, flyby: false,
     });
@@ -159,12 +159,16 @@ export class Butterflies {
       f.root.position.y += Math.cos(f.phase) * 0.012 * (gliding ? 0 : 1);
       f.root.traverse((o) => { o.renderOrder = orderForZ(f.pos.z); });
       // 向き：進む向きへ体を向け、頭をやや上げ、曲がる向きに傾く。急に向きを変えず滑らかに追う
-      _fwd.copy(f.vel).normalize();
+      // 体は水平に近く保つ：進む向きは水平成分から取り、頭の上げ下げは小さく（翅の上面が常に空を向く）
+      const hx = f.vel.x, hz = f.vel.z, hl = Math.hypot(hx, hz);
+      if (hl > 1e-3) f.heading.set(hx / hl, 0, hz / hl);
+      const pitch = THREE.MathUtils.clamp(Math.atan2(f.vel.y, Math.max(hl, 0.05)), -0.3, 0.3) + 0.12;
+      _fwd.copy(f.heading).multiplyScalar(Math.cos(pitch)).setY(Math.sin(pitch));
       _dummy.position.copy(f.pos);
       _dummy.up.set(0, 1, 0);
-      _dummy.lookAt(_tmp.copy(f.pos).add(_fwd).add(_lift));
-      const bank = THREE.MathUtils.clamp((f.vel.x * f.prevVel.y - f.vel.y * f.prevVel.x) * 40, -0.6, 0.6);
-      _dummy.rotateZ(bank + Math.sin(w.time * 0.8 + f.seed) * 0.15);
+      _dummy.lookAt(_tmp.copy(f.pos).add(_fwd));
+      const bank = THREE.MathUtils.clamp((f.vel.x * f.prevVel.z - f.vel.z * f.prevVel.x) * 40, -0.45, 0.45);
+      _dummy.rotateZ(bank + Math.sin(w.time * 0.8 + f.seed) * 0.08);
       f.root.quaternion.slerp(_dummy.quaternion, 1 - Math.exp(-dt * 3));
       f.prevVel.copy(f.vel);
       // 打ち下ろしは速く、打ち上げはゆっくり
