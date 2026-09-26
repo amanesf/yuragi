@@ -99,7 +99,7 @@ export class InkLayers {
       m.uniforms.dye.value = this.dye();
       m.uniforms.time.value = time;
     }
-    this.mats.forEach((m, i) => { m.uniforms.cream.value = [0.5, 0.9, 0.55, 0.3][i] * CONFIG.ink.cream; });
+    this.mats.forEach((m, i) => { m.uniforms.cream.value = [1.0, 0.9, 0.55, 0.3][i] * CONFIG.ink.cream; });
     this.mats.forEach((m, i) => { m.uniforms.glow.value = [0.5, 1, 1, 0.4][i] * glow * CONFIG.light.inkGlow; });
     this.mats[2].uniforms.opacity.value = 0.88 * CONFIG.ink.front;
     this.mats[3].uniforms.opacity.value = 0.8 * CONFIG.ink.front;

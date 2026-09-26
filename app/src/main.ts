@@ -166,7 +166,7 @@ function emit(dt: number, strength: number) {
     const far = e.seed > 5;
     fluid.push({
       x, y, radius: 0.045, dx: ix * 0.09 * strength, dy: iy * 0.09 * strength, swirl: 0, radial: 0,
-      ink: far ? 0 : 1.6 * strength, inkR: far ? 0.8 * strength : 3 * strength, inkA: far ? 3 * strength : 0.8 * strength, light: (e.seed % 2 < 1 ? 3.2 : 0.6) * strength * CONFIG.ink.cream, life: 0.25,
+      ink: far ? 0 : 1.6 * strength, inkR: far ? 0.8 * strength : 3 * strength, inkA: far ? 3 * strength : 0.8 * strength, light: (e.seed % 2 < 1 ? 3.2 : 2.0) * strength * CONFIG.ink.cream, life: 0.25,
     });
   }
 }

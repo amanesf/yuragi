@@ -193,7 +193,7 @@ void main() {
 
 const DYE = COMMON + NOISE + /* glsl */ `
 uniform sampler2D vel, dye, aura;
-uniform float dt, time, edgeEmit, girlEmit, speed, drop, clearing, faceClear, pool;
+uniform float dt, time, edgeEmit, girlEmit, speed, drop, clearing, faceClear, pool, farK;
 uniform vec2 viewHalf, viewCenter;
 uniform vec4 girlRect;
 uniform vec4 impA[${MAX_IMPULSES}];
@@ -208,7 +208,9 @@ void main() {
   float edge = smoothstep(0.7, 1.05, pow(pow(abs(q.x), 4.0) + pow(abs(q.y), 4.0), 0.25));
   float blot = smoothstep(0.52, 0.7, fbm(w * 2.3 + vec2(t * 0.05, -t * 0.04)));
   float blot2 = smoothstep(0.58, 0.72, fbm(w * 3.1 + 11.0 - vec2(t * 0.04, t * 0.06)));
-  k.a += edge * blot * edgeEmit * 0.5 * dt;
+  k.a += edge * blot * edgeEmit * 0.5 * farK * dt;
+  // 背景にもクリープ：縁の墨と入れ違いに明るい成分が湧く
+  k.b += edge * (1.0 - blot) * smoothstep(0.45, 0.6, fbm(w * 2.0 - vec2(t * 0.03, 0.0))) * edgeEmit * 0.35 * dt;
   k.r += edge * blot2 * edgeEmit * 0.25 * dt;
   k.g += edge * blot * blot2 * edgeEmit * 0.5 * dt * smoothstep(0.0, -0.5, q.y);
 
@@ -308,7 +310,7 @@ export class InkFluid {
     this.subtract = new Pass(SUBTRACT, { ...base, vel: { value: null }, pres: { value: null } });
     this.dyePass = new Pass(DYE, {
       ...base, ...shared, texel, vel: { value: null }, dye: { value: null },
-      edgeEmit: { value: 1 }, girlEmit: { value: 1 }, drop: { value: 0 }, clearing: { value: 9 }, faceClear: { value: 1 }, pool: { value: 0 },
+      edgeEmit: { value: 1 }, girlEmit: { value: 1 }, drop: { value: 0 }, clearing: { value: 9 }, faceClear: { value: 1 }, pool: { value: 0 }, farK: { value: 1 },
       impA, impC,
     });
   }
@@ -329,7 +331,7 @@ export class InkFluid {
       const env = Math.sin(Math.PI * Math.min(1, 1 - i.life / i.span + 1e-3)) ** 0.6;
       A[n].set(i.x, i.y, i.radius, env);
       B[n].set(i.dx, i.dy, i.swirl, i.radial).multiplyScalar(14);
-      C[n].set(i.ink * k.amount, i.light, (i.inkR ?? i.ink * 0.6) * k.amount, (i.inkA ?? 0) * k.amount);
+      C[n].set(i.ink * k.amount, i.light, (i.inkR ?? i.ink * 0.6) * k.amount, (i.inkA ?? 0) * k.amount * k.far);
     }
     for (const i of this.impulses) i.life -= dt;
     for (let n = this.impulses.length - 1; n >= 0; n--) if (this.impulses[n].life <= 0) this.impulses.splice(n, 1);
@@ -378,6 +380,7 @@ export class InkFluid {
     d.edgeEmit.value = this.edgeEmit * k.amount * k.periphery;
     d.girlEmit.value = this.girlEmit * k.amount * k.dissolve;
     d.pool.value = this.pool * k.amount * k.pool;
+    d.farK.value = k.far;
     d.drop.value = this.drop; d.clearing.value = this.clearing; d.faceClear.value = this.faceClear;
     this.dyePass.render(r, this.dye.write); this.dye.swap();
   }

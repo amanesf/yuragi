@@ -18,11 +18,18 @@ ${TONE_GLSL}
 ${NOISE}
 void main() {
   vec2 p = (vUv - 0.5) * vec2(1.0, 1.35);
-  float mist = exp(-dot(p * vec2(1.7, 1.1), p * vec2(1.7, 1.1)) * 1.4);
+  // 霧は画面の中ほどまで届く
+  float mist = exp(-dot(p * vec2(1.2, 0.85), p * vec2(1.2, 0.85)) * 1.2);
   vec3 col = mix(tEdge, tMist, mist) * paper;
   vec2 q = vec2(fbm(p * 2.0 + time * 0.01), fbm(p * 2.0 + 7.3 - time * 0.012));
   float wash = fbm(p * 2.6 + q * 1.5);
   col *= 1.0 - smoothstep(0.45, 0.8, wash) * 0.35;
+  // 背景そのもののマーブル：翡翠の霧と墨がゆっくり縞になって混ざる（流体が薄い所でも真っ黒にならない）
+  vec2 r = vec2(fbm(p * 1.6 + q * 2.2 + vec2(time * 0.015, 0.0)), fbm(p * 1.6 + q * 2.2 + vec2(4.7, -time * 0.012)));
+  float marble = fbm(p * 2.2 + r * 2.6);
+  float band = sin(marble * 18.0 + time * 0.05);
+  col = mix(col, tMist * 0.75 * paper, smoothstep(0.55, 0.95, band) * 0.45 * (1.0 - mist * 0.5));
+  col = mix(col, tCore, smoothstep(-0.4, -0.9, band) * 0.35);
   gl_FragColor = vec4(col, 1.0);
 }`;
 
