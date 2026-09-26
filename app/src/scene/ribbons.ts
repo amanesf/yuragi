@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
-import type { World } from './common';
+import { WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
  * 光の帯。原画の翡翠の流れを、少女のまわりを巡る 3D の帯として描き直す。
@@ -13,7 +13,7 @@ const VERT = /* glsl */ `
 attribute float s;
 attribute float side;
 uniform float time, seed, turns, radius, y0, y1, width, speed, reveal, widthScale;
-uniform vec2 wind;
+${WIND_GLSL}
 uniform vec4 touch;
 varying float vS, vSide, vFade;
 
@@ -22,7 +22,7 @@ vec3 path(float s) {
   float y = mix(y0, y1, s) + sin(s * 7.0 + time * 0.45 + seed * 5.0) * 0.12;
   float r = radius * (0.75 + 0.35 * sin(s * 4.0 + time * 0.31 + seed * 3.0));
   vec3 p = vec3(cos(a) * r, y, sin(a) * r * 0.75);
-  p.x += wind.x * 0.5 * s + sin(time * 0.2 + seed) * 0.08;
+  p.x += windAt(p.x) * 0.35 * s + sin(time * 0.2 + seed) * 0.08;
   p.z += wind.y * 0.4 * s;
   // 触れた場所へ寄っていく
   vec3 dt = touch.xyz - p;
@@ -98,7 +98,7 @@ export class Ribbons {
           y0: { value: low ? -1.25 : -0.6 }, y1: { value: low ? 0.1 + Math.random() * 0.4 : 0.95 },
           width: { value: 0.06 + Math.random() * 0.07 }, speed: { value: (i % 2 ? 1 : -1) * (0.05 + Math.random() * 0.07) },
           reveal: { value: 0 }, intensity: { value: 1 }, widthScale: { value: 1 },
-          wind: { value: new THREE.Vector2() }, touch: { value: new THREE.Vector4() },
+          wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, touch: { value: new THREE.Vector4() },
           colA: { value: new THREE.Color(a) }, colB: { value: new THREE.Color(b) },
         },
         blending: THREE.AdditiveBlending, depthTest: true, depthWrite: false, transparent: true, side: THREE.DoubleSide,
@@ -121,7 +121,7 @@ export class Ribbons {
       const extra = i >= 4 ? surge : 1;
       u.time.value = w.time; u.reveal.value = w.reveal; u.intensity.value = lvl * extra;
       u.widthScale.value = 0.75 + 0.45 * surge;
-      (u.wind.value as THREE.Vector2).set(w.wind.x, w.wind.z);
+      setWindUniforms(u, w);
       (u.touch.value as THREE.Vector4).set(w.touch.x, w.touch.y, w.touch.z, w.touch.s);
     });
   }

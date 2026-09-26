@@ -11,6 +11,8 @@ import { DYE_TEXEL, InkFluid, RECT } from './scene/inkfluid';
 import { InkLayers } from './scene/inklayers';
 import { Ribbons } from './scene/ribbons';
 import { FrontSmoke } from './scene/frontsmoke';
+import { InkRibbons } from './scene/inkribbons';
+import { WindFx } from './scene/windfx';
 
 const q = new URLSearchParams(location.search);
 const DPR = Math.min(Number(q.get('dpr')) || window.devicePixelRatio || 1, 2);
@@ -33,7 +35,7 @@ for (const t of [girlTex, regionTex, auraTex]) { t.colorSpace = THREE.NoColorSpa
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
-const world: World = { time: 0, wind: { x: 0, z: 0 }, touch: { x: 0, y: 0, z: 0.3, s: 0 }, reveal: 0 };
+const world: World = { time: 0, wind: { x: 0, z: 0 }, touch: { x: 0, y: 0, z: 0.3, s: 0 }, reveal: 0, gust: { amp: 0, dir: 1, front: -9 }, drift: 0 };
 
 const girlRect = new THREE.Vector4(0, 0, GIRL_W * 1.3, GIRL_H * 1.3);
 const fluid = new InkFluid(auraTex, girlRect);
@@ -42,9 +44,11 @@ const inkLayers = new InkLayers(() => fluid.dye.read.texture, DYE_TEXEL);
 const girl = new Girl(girlTex, regionTex, auraTex);
 const frontSmoke = new FrontSmoke(() => fluid.dye.read.texture, new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h));
 const ribbons = new Ribbons();
+const inkRibbons = new InkRibbons();
+const windFx = new WindFx();
 const glitter = new Glitter();
 const flies = new Butterflies();
-scene.add(backdrop.mesh, inkLayers.group, frontSmoke.group, girl.mesh, ribbons.group, glitter.points, flies.group);
+scene.add(backdrop.mesh, inkLayers.group, frontSmoke.group, inkRibbons.group, windFx.group, girl.mesh, ribbons.group, glitter.points, flies.group);
 
 let W = 1, H = 1;
 const post = new Post(1, 1);
@@ -63,6 +67,8 @@ window.addEventListener('resize', resize);
 
 // ---- カメラ ----
 const pan = { x: 0, y: 0, tx: 0, ty: 0 };
+/** 突風に押されるカメラ（ばね） */
+const nudge = { x: 0, y: 0, vx: 0, vy: 0 };
 function updateCamera(t: number, climax: number) {
   const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const needH = Math.max(GIRL_H * 1.04, (GIRL_W * 1.0) / camera.aspect);
@@ -72,7 +78,7 @@ function updateCamera(t: number, climax: number) {
   const az = Math.sin((t / 31) * Math.PI * 2) * 0.1 + pan.x * 0.08;
   const el = Math.sin((t / 23) * Math.PI * 2) * 0.025 + pan.y * 0.04;
   const target = new THREE.Vector3(0, 0.02 + intro * 0.25, 0);
-  camera.position.set(Math.sin(az) * dist, target.y + Math.sin(el) * dist, Math.cos(az) * dist);
+  camera.position.set(Math.sin(az) * dist + nudge.x, target.y + Math.sin(el) * dist + nudge.y, Math.cos(az) * dist);
   camera.lookAt(target);
   // 流体に「いま見えている範囲」を教える（縁のうねりが画面の縁に来るように）
   const hh = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist;
@@ -167,7 +173,8 @@ function emit(dt: number, strength: number) {
 // ---- 監督：静 → 高まり → 余韻 ----
 const rand = ([a, b]: [number, number]) => a + Math.random() * (b - a);
 let climax = 0, climaxT = -1, climaxLen = 12, nextClimax = 22 + Math.random() * 15, climaxKick = 0;
-let gustDir = 1, nextFly = 5;
+let gustDir = 1, nextFly = 5, nextFlyby = 20 + Math.random() * 20;
+let gustT = -1, gustLen = 4, nextGust = 10 + Math.random() * 6;
 const wind = { x: 0, z: 0, vx: 0, vz: 0 };
 function direct(dt: number) {
   const t = world.time;
@@ -190,8 +197,8 @@ function direct(dt: number) {
   // 風：常にそよぎ、高まりでは強く吹く。布と髪には質量（ばね）
   let tx = Math.sin(t * 0.21) * 0.2 + Math.sin(t * 0.083 + 1.3) * 0.22 + Math.sin(t * 0.47 + 2.1) * 0.07;
   let tz = Math.sin(t * 0.17 + 0.5) * 0.15;
-  tx += gustDir * climax * (0.9 + 0.3 * Math.sin(t * 2.7));
-  tz += climax * 0.35 * Math.sin(t * 1.5);
+  tx += gustDir * climax * (0.35 + 0.1 * Math.sin(t * 2.7));
+  tz += climax * 0.2 * Math.sin(t * 1.5);
   tx += windImpulse; tz += windImpulseZ;
   windImpulse *= Math.exp(-dt / 0.6); windImpulseZ *= Math.exp(-dt / 0.6);
   wind.vx += ((tx - wind.x) * 9 - wind.vx * 3.2) * dt;
@@ -199,6 +206,25 @@ function direct(dt: number) {
   wind.x += wind.vx * dt; wind.z += wind.vz * dt;
   world.wind.x = THREE.MathUtils.clamp(wind.x, -1.5, 1.5);
   world.wind.z = THREE.MathUtils.clamp(wind.z, -1, 1);
+
+  // 突風：風上から前線が渡ってくる。強すぎない
+  if (t > nextGust && gustT < 0 && world.reveal > 0.8) {
+    gustT = 0; gustLen = 3 + Math.random() * 3;
+    world.gust.dir = Math.random() < 0.5 ? -1 : 1;
+    nextGust = t + rand(CONFIG.wind.gustEvery);
+  }
+  if (gustT >= 0) {
+    gustT += dt;
+    world.gust.front = -world.gust.dir * 1.4 + world.gust.dir * gustT * 1.6;
+    world.gust.amp = CONFIG.wind.gust * (1 + climax * 0.5) * Math.min(1, gustT / 0.6) * Math.min(1, Math.max(0, (gustLen - gustT) / 1.5));
+    // 前線が画面の中央を通る瞬間、カメラがわずかに押される
+    if (Math.abs(world.gust.front) < 0.05) { nudge.vx += world.gust.dir * 0.04 * CONFIG.wind.gust; nudge.vy -= 0.01; }
+    if (gustT > gustLen) { gustT = -1; world.gust.amp = 0; }
+  }
+  nudge.vx += (-nudge.x * 14 - nudge.vx * 4) * dt; nudge.vy += (-nudge.y * 14 - nudge.vy * 4) * dt;
+  nudge.x += nudge.vx * dt; nudge.y += nudge.vy * dt;
+  // 流される量の積分：ふだんの弱い風でも、粒や煙は少しずつ風下へ
+  world.drift += (world.wind.x * 0.06 + world.gust.amp * world.gust.dir * 0.12) * CONFIG.wind.drift * dt;
 
   // 墨：高まりで湧き、渦を巻く
   fluid.ambient = 1 + climax * 2.5;
@@ -210,6 +236,7 @@ function direct(dt: number) {
   }
 
   emit(dt, (1 + climax * 1.2) * Math.min(1, world.reveal * 2));
+  if (t > nextFlyby && world.reveal > 0.9) { flies.flyby(); nextFlyby = t + 25 + Math.random() * 35; }
 
   const amb = CONFIG.butterflies.ambient;
   if (t > nextFly && flies.count < amb + 3) { flies.spawn(undefined, flies.count < amb); nextFly = t + 6 + Math.random() * 10; }
@@ -260,13 +287,15 @@ function frame(now: number) {
   const t = world.time;
   updateCamera(t, climax);
   // 流体はフレームに一度（重いので）。時間はまとめて進める
-  fluid.step(renderer, Math.min(Math.max(real, 1 / 120), 1 / 30), t, world.wind);
+  fluid.step(renderer, Math.min(Math.max(real, 1 / 120), 1 / 30), t, { x: world.wind.x + world.gust.amp * world.gust.dir * 0.5, z: world.wind.z });
 
   backdrop.update(t);
   inkLayers.update(t, 1 + climax * 1.5 + flash * 2);
-  girl.update(t, world.wind, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),
+  girl.update(t, world, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),
     fluid.vel.read.texture, fluid.dye.read.texture, CONFIG.light.aura * (1 + climax * 0.8) * world.reveal);
-  frontSmoke.update(t, world.wind, world.reveal, climax);
+  frontSmoke.update(t, world, world.reveal, climax);
+  inkRibbons.update(world, H, climax);
+  windFx.update(world, real);
   ribbons.update(world, Math.min(1, climax + flash * 0.5));
   glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + climax * 1.2));
   flies.update(world, real, flash);

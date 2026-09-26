@@ -18,4 +18,29 @@ export interface World {
   touch: { x: number; y: number; z: number; s: number };
   /** 開幕の進み具合 0→1。 */
   reveal: number;
+  /** 突風：強さ・向き（±1）・前線の x。前線は風上から風下へ渡っていく。 */
+  gust: { amp: number; dir: number; front: number };
+  /** 風に流された量の積分（粒・煙・花びらが弱い風でも少しずつ流される）。 */
+  drift: number;
+}
+
+/** 場所 x での風（突風の前線がまだ来ていない所は吹いていない）。 */
+export function windAt(w: World, x: number) {
+  const k = (w.gust.front - x) * w.gust.dir;
+  const s = Math.min(1, Math.max(0, (k + 0.35) / 0.7));
+  return w.wind.x + w.gust.amp * w.gust.dir * s * s * (3 - 2 * s);
+}
+
+/** 同じことをシェーダで。uniform: wind(vec2), gust(vec3) */
+export const WIND_GLSL = /* glsl */ `
+uniform vec2 wind;
+uniform vec3 gust;
+float windAt(float x) {
+  return wind.x + gust.x * gust.y * smoothstep(-0.35, 0.35, (gust.z - x) * gust.y);
+}
+`;
+
+export function setWindUniforms(u: Record<string, { value: unknown }>, w: World) {
+  (u.wind.value as { set(x: number, y: number): void }).set(w.wind.x, w.wind.z);
+  (u.gust.value as { set(x: number, y: number, z: number): void }).set(w.gust.amp, w.gust.dir, w.gust.front);
 }

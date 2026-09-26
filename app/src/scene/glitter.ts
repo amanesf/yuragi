@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { World } from './common';
+import { WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
  * 金と翡翠の粒。少女のまわりをゆっくり巡りながら昇る。すべて頂点シェーダの中で決まるので CPU は何もしない。
@@ -10,7 +10,8 @@ const N = 14000;
 const VERT = /* glsl */ `
 attribute vec4 seed;
 uniform float time, px, reveal, burst, level;
-uniform vec2 wind;
+${WIND_GLSL}
+uniform float drift;
 uniform vec4 touch;
 varying vec3 vCol;
 varying float vA;
@@ -26,7 +27,11 @@ void main() {
   float near = step(0.975, fract(seed.z * 31.0));
   p = mix(p, vec3((seed.x - 0.5) * 1.6, y * 0.8, 0.9 + seed.y * 0.9), near);
   p += vec3(sin(time * 0.7 + seed.z * 40.0), cos(time * 0.5 + seed.x * 30.0), sin(time * 0.6 + seed.w * 20.0)) * 0.04;
-  p.x += wind.x * 0.25 * (0.5 + seed.z);
+  // 風に流される：弱い風でも少しずつ（積分された流れで横へ、画面の外へ出たら反対側から）
+  float wx = windAt(p.x);
+  p.x += wx * 0.18 * (0.5 + seed.z);
+  p.x = mod(p.x + drift * (0.25 + 0.5 * seed.y) + 2.0, 4.0) - 2.0;
+  p.y += abs(wx) * 0.05 * sin(seed.x * 30.0 + time);
   p.z += wind.y * 0.2;
   // 触れた場所で渦を巻く
   vec3 d = p - touch.xyz;
@@ -70,7 +75,7 @@ export class Glitter {
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
         time: { value: 0 }, px: { value: 1000 }, reveal: { value: 0 }, burst: { value: 0 }, level: { value: 1 },
-        wind: { value: new THREE.Vector2() }, touch: { value: new THREE.Vector4() },
+        wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, drift: { value: 0 }, touch: { value: new THREE.Vector4() },
       },
       blending: THREE.AdditiveBlending, depthTest: true, depthWrite: false, transparent: true,
     });
@@ -83,7 +88,8 @@ export class Glitter {
     const u = this.mat.uniforms;
     u.level.value = level;
     u.time.value = w.time; u.px.value = pxScale; u.reveal.value = w.reveal; u.burst.value = burst;
-    (u.wind.value as THREE.Vector2).set(w.wind.x, w.wind.z);
+    setWindUniforms(u, w);
+    u.drift.value = w.drift;
     (u.touch.value as THREE.Vector4).set(w.touch.x, w.touch.y, w.touch.z, w.touch.s);
   }
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { NOISE } from '../core/gl';
 import { CONFIG } from '../config';
-import { GIRL_H, GIRL_PX, GIRL_W } from './common';
+import { GIRL_H, GIRL_PX, GIRL_W, WIND_GLSL, setWindUniforms, type World } from './common';
 import { RECT } from './inkfluid';
 
 /**
@@ -14,7 +14,7 @@ import { RECT } from './inkfluid';
 const VERT = /* glsl */ `
 uniform sampler2D regions, fvel;
 uniform float time, sway, hairAmp;
-uniform vec2 wind;
+${WIND_GLSL}
 uniform vec4 frect;
 varying vec2 vUv;
 varying vec2 vWorld;
@@ -24,6 +24,7 @@ const float S = ${(GIRL_W / GIRL_PX.w).toFixed(6)}; // 1 画素のワールド�
 
 void main() {
   vUv = uv;
+  float wx = windAt(position.x);
   vec2 px = vec2(uv.x, 1.0 - uv.y) * PX;
   vec3 w = texture2D(regions, uv).rgb;
 
@@ -39,7 +40,7 @@ void main() {
   float lag = s * 1.9;
   float bend = sin(time * 0.85 - lag + side * 0.6) * 0.055
              + sin(time * 0.47 - lag * 0.7 + 1.3) * 0.045
-             + wind.x * 0.16 * (0.6 + 0.4 * s);
+             + wx * 0.16 * (0.6 + 0.4 * s);
   float arm = (px.y - 290.0) * pow(s, 0.6);
   vec3 d = vec3(0.0);
   d.x += hairW * bend * arm;
@@ -49,13 +50,13 @@ void main() {
   // 袖：肘より下、体の外側ほど
   float slvW = w.b * smoothstep(540.0, 900.0, px.y) * smoothstep(110.0, 260.0, abs(px.x - 384.0)) * free;
   float sp = time * 1.05 + px.y * 0.009 + side * 1.9;
-  d.x += slvW * (sin(sp) * 12.0 * side + wind.x * 45.0);
+  d.x += slvW * (sin(sp) * 12.0 * side + wx * 45.0);
   d.y += slvW * sin(time * 1.6 + px.x * 0.02) * 7.0;
   d.z += slvW * (cos(sp) * 22.0 + wind.y * 40.0);
 
   // 袴：裾ほど
   float skW = w.g * smoothstep(880.0, 1300.0, px.y);
-  d.x += skW * (sin(time * 0.9 + px.x * 0.012) * 7.0 + wind.x * 26.0);
+  d.x += skW * (sin(time * 0.9 + px.x * 0.012) * 7.0 + wx * 26.0);
   d.z += skW * (sin(time * 1.1 + px.x * 0.02 + 1.0) * 12.0);
 
   // 流体に引かれる：墨の流れが毛先と袖を運ぶ
@@ -64,7 +65,7 @@ void main() {
   float fvl = length(fv); if (fvl > 60.0) fv *= 60.0 / fvl;
   d.xy += fv * slvW * 0.06;
   d *= sway;
-  vFlex = clamp((hairW * 0.3 + slvW + skW) * (0.4 + length(wind)), 0.0, 1.0);
+  vFlex = clamp((hairW * 0.3 + slvW + skW) * (0.4 + length(vec2(wx, wind.y))), 0.0, 1.0);
   vec3 p = position + d * S;
   vWorld = p.xy;
   // わずかな丸み（板に見せない）。頭も含めて一様なので歪みにはならない。
@@ -167,7 +168,7 @@ export class Girl {
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
         map: { value: map }, regions: { value: regions },
-        time: { value: 0 }, wind: { value: new THREE.Vector2() },
+        time: { value: 0 }, wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() },
         reveal: { value: 0 }, rim: { value: 1 }, aura: { value: aura },
         dissolve: { value: CONFIG.ink.dissolve }, warp: { value: 1 }, aura2: { value: 0 },
         fvel: { value: null }, fdye: { value: null }, frect: { value: new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h) }, speed: { value: CONFIG.ink.speed }, sway: { value: CONFIG.wind.sway }, hairAmp: { value: CONFIG.wind.hair },
@@ -178,14 +179,14 @@ export class Girl {
     this.mesh.renderOrder = 10;
   }
 
-  update(time: number, wind: { x: number; z: number }, reveal: number, rim: number, fvel: THREE.Texture, fdye: THREE.Texture, aura2: number) {
+  update(time: number, world: World, reveal: number, rim: number, fvel: THREE.Texture, fdye: THREE.Texture, aura2: number) {
     const u = this.material.uniforms;
     u.fvel.value = fvel; u.fdye.value = fdye;
     u.dissolve.value = CONFIG.ink.dissolve;
     u.warp.value = CONFIG.ink.warp;
     u.aura2.value = aura2;
     u.time.value = time;
-    (u.wind.value as THREE.Vector2).set(wind.x, wind.z);
+    setWindUniforms(u, world);
     u.reveal.value = reveal;
     u.rim.value = rim;
   }

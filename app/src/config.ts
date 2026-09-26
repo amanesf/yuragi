@@ -24,6 +24,10 @@ export const CONFIG = {
     frontSmoke: 1,
     /** 体全体がとろける強さ（初版のゆがみ）。顔は常に固定。 */
     warp: 1,
+    /** 立体の墨の帯。 */
+    ribbons: 1,
+    /** 3D に漂う墨の粒の煙。 */
+    motes: 1,
     /** 触れたときに落ちる墨。 */
     touchInk: 1,
   },
@@ -65,6 +69,16 @@ export const CONFIG = {
     sway: 1,
     /** 髪だけの揺れの倍率（毛先ほど大きい）。 */
     hair: 1.8,
+    /** 突風の強さ（強すぎないくらい）。 */
+    gust: 0.45,
+    /** 突風の間隔（秒）。 */
+    gustEvery: [14, 30] as [number, number],
+    /** ふだんの風がものを流す速さ。 */
+    drift: 1,
+    /** 硝子の花びらの量。 */
+    petals: 1,
+    /** 突風の空気の筋。 */
+    streaks: 1,
   },
 };
 

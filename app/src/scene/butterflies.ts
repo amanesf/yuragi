@@ -61,7 +61,7 @@ void main() {
 interface Fly {
   root: THREE.Group; L: THREE.Mesh; R: THREE.Mesh; mat: THREE.ShaderMaterial;
   pos: THREE.Vector3; vel: THREE.Vector3; goal: THREE.Vector3;
-  phase: number; freq: number; age: number; life: number; glide: number; seed: number; ambient: boolean;
+  phase: number; freq: number; age: number; life: number; glide: number; seed: number; ambient: boolean; flyby: boolean;
 }
 
 export class Butterflies {
@@ -77,7 +77,9 @@ export class Butterflies {
   private goal() {
     // 画面の中に収まる範囲（顔の真ん前は少し避ける）
     for (;;) {
-      const v = new THREE.Vector3((Math.random() - 0.5) * 0.95, -0.85 + Math.random() * 1.75, -0.2 + Math.random() * 0.7);
+      // 奥から手前（カメラ寄り）まで。手前ほど画面に広く見えるので横幅も広げる
+      const z = -0.2 + Math.random() * 1.3;
+      const v = new THREE.Vector3((Math.random() - 0.5) * (0.95 + z * 0.5), -0.85 + Math.random() * 1.75, z);
       if (Math.abs(v.x) > 0.18 || v.y < 0.4) return v;
     }
   }
@@ -105,9 +107,23 @@ export class Butterflies {
     this.flies.push({
       root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), goal: this.goal(),
       phase: Math.random() * 10, freq: 2.8 + Math.random() * 1.2, age: 0,
-      life: ambient ? 1e9 : 10 + Math.random() * 6, glide: 0, seed: Math.random() * 100, ambient,
+      life: ambient ? 1e9 : 10 + Math.random() * 6, glide: 0, seed: Math.random() * 100, ambient, flyby: false,
     });
     this.group.add(root);
+  }
+
+  /** カメラのすぐ前を、大きく、ぼけながらよぎる一匹。 */
+  flyby() {
+    this.spawn(undefined, false);
+    const f = this.flies[this.flies.length - 1];
+    if (!f) return;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    f.flyby = true;
+    f.life = 4.5;
+    f.pos.set(side * 0.9, -0.3 + Math.random() * 0.8, 1.55 + Math.random() * 0.4);
+    f.vel.set(-side * 0.45, 0.06 + Math.random() * 0.08, -0.05);
+    f.root.scale.setScalar(0.12);
+    f.freq = 2.2;
   }
 
   get count() { return this.flies.length; }
@@ -118,6 +134,7 @@ export class Butterflies {
       const f = this.flies[i];
       f.age += dt;
       if (f.pos.distanceTo(f.goal) < 0.25 || Math.random() < dt * 0.08) f.goal = this.goal();
+      if (f.flyby) f.goal.copy(f.pos).addScaledVector(f.vel, 3);
       const steer = f.goal.clone().sub(f.pos).normalize().multiplyScalar(0.35);
       // 触れた場所へは寄っていく（逃げない蝶）
       if (w.touch.s > 0.2) steer.add(touch.clone().sub(f.pos).multiplyScalar(0.4 * w.touch.s));
@@ -138,7 +155,7 @@ export class Butterflies {
       f.L.rotation.y = -open; f.R.rotation.y = open;
 
       const fadeIn = Math.min(1, f.age / 1.5), fadeOut = Math.min(1, (f.life - f.age) / 2);
-      f.mat.uniforms.alpha.value = Math.max(0, Math.min(fadeIn, fadeOut)) * Math.min(1, w.reveal * 1.5);
+      f.mat.uniforms.alpha.value = Math.max(0, Math.min(fadeIn, fadeOut)) * Math.min(1, w.reveal * 1.5) * (f.flyby ? 0.55 : 1);
       f.mat.uniforms.time.value = w.time;
       f.mat.uniforms.flash.value = flash;
       if (f.age > f.life) { this.group.remove(f.root); f.mat.dispose(); this.flies.splice(i, 1); }
