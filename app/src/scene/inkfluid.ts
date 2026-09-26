@@ -336,13 +336,13 @@ export class InkFluid {
     // 速度：自己移流 → 力 → 圧力投影
     this.advect.u.vel.value = this.vel.read.texture;
     this.advect.u.src.value = this.vel.read.texture;
-    (this.advect.u.keep.value as THREE.Vector4).setScalar(0.45);
+    (this.advect.u.keep.value as THREE.Vector4).setScalar(0.55);
     this.advect.render(r, this.vel.write); this.vel.swap();
 
     const f = this.force.u;
     f.vel.value = this.vel.read.texture;
     f.vort.value = 6 * k.vorticity;
-    f.ambient.value = this.ambient * k.amount;
+    f.ambient.value = this.ambient * k.flow;
     f.girlEmit.value = this.girlEmit * k.dissolve;
     (f.wind.value as THREE.Vector2).set(wind.x, wind.z);
     this.force.render(r, this.vel.write); this.vel.swap();

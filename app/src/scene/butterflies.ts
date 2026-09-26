@@ -58,9 +58,12 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
+const _fwd = new THREE.Vector3(), _tmp = new THREE.Vector3(), _lift = new THREE.Vector3(0, 0.35, 0);
+const _dummy = new THREE.Object3D();
+
 interface Fly {
   root: THREE.Group; L: THREE.Mesh; R: THREE.Mesh; mat: THREE.ShaderMaterial;
-  pos: THREE.Vector3; vel: THREE.Vector3; goal: THREE.Vector3;
+  pos: THREE.Vector3; vel: THREE.Vector3; prevVel: THREE.Vector3; goal: THREE.Vector3;
   phase: number; freq: number; age: number; life: number; glide: number; seed: number; ambient: boolean; flyby: boolean;
 }
 
@@ -99,14 +102,16 @@ export class Butterflies {
     const size = s0 + Math.random() * (s1 - s0);
     root.scale.setScalar(size);
     // 翅は画面に向けて広げる（真横を向いて消えないように）。体の軸は進む向き
+    // 本物の蝶のように：翅は体の左右に水平に付き、上下に羽ばたく（体の前が進む向き）
     const inner = new THREE.Group();
+    inner.rotation.x = Math.PI / 2;
     inner.add(L, R);
     root.add(inner);
     root.renderOrder = 35;
     const side = Math.random() < 0.5 ? -1 : 1;
     const pos = at ? at.clone() : new THREE.Vector3(side * 0.75, -0.6 + Math.random() * 1.3, 0.1 + Math.random() * 0.4);
     this.flies.push({
-      root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), goal: this.goal(),
+      root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), prevVel: new THREE.Vector3(), goal: this.goal(),
       phase: Math.random() * 10, freq: 2.8 + Math.random() * 1.2, age: 0,
       life: ambient ? 1e9 : 10 + Math.random() * 6, glide: 0, seed: Math.random() * 100, ambient, flyby: false,
     });
@@ -123,7 +128,7 @@ export class Butterflies {
     f.life = 4.5;
     f.pos.set(side * 0.9, -0.3 + Math.random() * 0.8, 1.55 + Math.random() * 0.4);
     f.vel.set(-side * 0.45, 0.06 + Math.random() * 0.08, -0.05);
-    f.root.scale.setScalar(0.12);
+    f.root.scale.setScalar(0.06);
     f.freq = 2.2;
   }
 
@@ -139,9 +144,9 @@ export class Butterflies {
       const steer = f.goal.clone().sub(f.pos).normalize().multiplyScalar(0.35);
       // 触れた場所へは寄っていく（逃げない蝶）
       if (w.touch.s > 0.2) steer.add(touch.clone().sub(f.pos).multiplyScalar(0.4 * w.touch.s));
-      steer.x += Math.sin(w.time * 1.3 + f.seed) * 0.25 + w.wind.x * 0.4;
-      steer.y += Math.sin(w.time * 2.1 + f.seed * 2.0) * 0.25;
-      f.vel.lerp(steer, 1 - Math.exp(-dt * 1.2));
+      steer.x += Math.sin(w.time * 0.7 + f.seed) * 0.15 + w.wind.x * 0.3;
+      steer.y += Math.sin(w.time * 1.1 + f.seed * 2.0) * 0.12;
+      f.vel.lerp(steer, 1 - Math.exp(-dt * 0.8));
       if (f.glide > 0) f.glide -= dt; else if (Math.random() < dt * 0.2) f.glide = 0.5 + Math.random() * 0.9;
       const gliding = f.glide > 0;
       f.phase += dt * (gliding ? 0.5 : f.freq) * Math.PI * 2;
@@ -149,11 +154,22 @@ export class Butterflies {
       f.pos.addScaledVector(f.vel, dt);
       f.pos.y += (gliding ? -0.03 : Math.max(0, flap) * 0.05) * dt;
 
+      // 羽ばたきに合わせて体が上下する（打ち下ろしで浮く）
       f.root.position.copy(f.pos);
+      f.root.position.y += Math.cos(f.phase) * 0.012 * (gliding ? 0 : 1);
       f.root.traverse((o) => { o.renderOrder = orderForZ(f.pos.z); });
-      // 体の軸を画面上の進行方向へ。わずかに傾けて立体感を出す
-      f.root.rotation.set(Math.sin(w.time * 0.9 + f.seed) * 0.35, Math.sin(w.time * 0.6 + f.seed * 2) * 0.3, Math.atan2(f.vel.y, f.vel.x) - Math.PI / 2);
-      const open = 0.05 + 1.15 * (0.5 + 0.5 * flap);
+      // 向き：進む向きへ体を向け、頭をやや上げ、曲がる向きに傾く。急に向きを変えず滑らかに追う
+      _fwd.copy(f.vel).normalize();
+      _dummy.position.copy(f.pos);
+      _dummy.up.set(0, 1, 0);
+      _dummy.lookAt(_tmp.copy(f.pos).add(_fwd).add(_lift));
+      const bank = THREE.MathUtils.clamp((f.vel.x * f.prevVel.y - f.vel.y * f.prevVel.x) * 40, -0.6, 0.6);
+      _dummy.rotateZ(bank + Math.sin(w.time * 0.8 + f.seed) * 0.15);
+      f.root.quaternion.slerp(_dummy.quaternion, 1 - Math.exp(-dt * 3));
+      f.prevVel.copy(f.vel);
+      // 打ち下ろしは速く、打ち上げはゆっくり
+      const u01 = 0.5 + 0.5 * flap;
+      const open = gliding ? 0.15 : -0.35 + 1.55 * Math.pow(u01, 0.7);
       f.L.rotation.y = -open; f.R.rotation.y = open;
 
       const fadeIn = Math.min(1, f.age / 1.5), fadeOut = Math.min(1, (f.life - f.age) / 2);

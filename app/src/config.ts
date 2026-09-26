@@ -16,8 +16,10 @@ export const CONFIG = {
     periphery: 1,
     /** 墨が流れる速さ。 */
     speed: 1,
+    /** 流体感：媒質を撫でる流れの強さ。 */
+    flow: 1.8,
     /** 渦の巻きの強さ（墨の糸の細かさ）。 */
-    vorticity: 1,
+    vorticity: 1.5,
     /** 墨が消えるまでの秒数（長いほど画面に墨が溜まる）。 */
     life: 9,
     /** 前面の墨煙。 */
@@ -37,7 +39,7 @@ export const CONFIG = {
     /** ふだんの光の帯（細く）。 */
     base: 0.55,
     /** 高まったときの光（第二版くらい）。 */
-    surge: 1.5,
+    surge: 1.0,
     /** 金と翡翠の粒。 */
     glitter: 0.75,
     /** 輪郭の光（少女の縁が翡翠に光る）。 */
@@ -49,9 +51,9 @@ export const CONFIG = {
   },
   butterflies: {
     /** 常に飛んでいる数。 */
-    ambient: 5,
+    ambient: 2,
     /** 大きさ（ワールド単位）。 */
-    size: [0.07, 0.11] as [number, number],
+    size: [0.035, 0.055] as [number, number],
   },
   grade: {
     /** 彩度。1 = 原画のまま。0 に近づけるほど墨と翡翠だけの世界へ。 */

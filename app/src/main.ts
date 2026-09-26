@@ -194,7 +194,7 @@ function direct(dt: number) {
     // 3秒で立ち上がり、保ち、5秒かけて余韻へ
     c = Math.min(1, climaxT / 3) * Math.min(1, Math.max(0, (climaxLen - climaxT) / 5));
     if (climaxT > climaxLen) climaxT = -1;
-    if (climaxT > 3 && climaxT - dt <= 3) for (let i = 0; i < 4; i++) flies.spawn();
+    if (climaxT > 3 && climaxT - dt <= 3) for (let i = 0; i < 2; i++) flies.spawn();
   }
   climaxKick = Math.max(0, climaxKick - dt * 0.2);
   climax = Math.min(1.2, c * CONFIG.climax.power + climaxKick);
@@ -242,10 +242,10 @@ function direct(dt: number) {
   }
 
   emit(dt, (1 + climax * 1.2) * Math.min(1, world.reveal * 2));
-  if (t > nextFlyby && world.reveal > 0.9) { flies.flyby(); nextFlyby = t + 8 + Math.random() * 12; }
+  if (t > nextFlyby && world.reveal > 0.9) { flies.flyby(); nextFlyby = t + 18 + Math.random() * 25; }
 
   const amb = CONFIG.butterflies.ambient;
-  if (t > nextFly && flies.count < amb + 3) { flies.spawn(undefined, flies.count < amb); nextFly = t + 6 + Math.random() * 10; }
+  if (t > nextFly && flies.count < amb + 1) { flies.spawn(undefined, flies.count < amb); nextFly = t + 6 + Math.random() * 10; }
 
   for (const p of pointers.values()) {
     // 長押し：その場で渦が育つ
@@ -296,14 +296,14 @@ function frame(now: number) {
   fluid.step(renderer, Math.min(Math.max(real, 1 / 120), 1 / 30), t, { x: world.wind.x + world.gust.amp * world.gust.dir * 0.5, z: world.wind.z });
 
   backdrop.update(t);
-  inkLayers.update(t, 1 + climax * 1.5 + flash * 2);
+  inkLayers.update(t, 1 + climax * 0.75 + flash * 2);
   girl.update(t, world, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),
-    fluid.vel.read.texture, fluid.dye.read.texture, CONFIG.light.aura * (1 + climax * 0.8) * world.reveal);
+    fluid.vel.read.texture, fluid.dye.read.texture, CONFIG.light.aura * (1 + climax * 0.4) * world.reveal);
   frontSmoke.update(t, world, world.reveal, climax);
   inkRibbons.update(world, H, climax);
   windFx.update(world, real);
   ribbons.update(world, Math.min(1, climax + flash * 0.5));
-  glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + climax * 1.2));
+  glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + climax * 0.6));
   flies.update(world, real, flash);
 
   title.classList.toggle('on', t > 5.5 && t < 13);
@@ -339,7 +339,7 @@ function frame(now: number) {
   girl.mode = 0;
   camera.layers.set(0);
 
-  post.strength = 0.7 + climax * 0.5 + flash * 0.4;
+  post.strength = 0.7 + climax * 0.25 + flash * 0.4;
   post.render(renderer, camera, camera.position.length(), t, flash, CONFIG.grade.saturation, CONFIG.grade.contrast, CONFIG.grade.clarity);
   requestAnimationFrame(frame);
 }
