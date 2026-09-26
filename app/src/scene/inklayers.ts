@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
 import { NOISE } from '../core/gl';
+import { TONE, TONE_GLSL } from './tone';
 import { RECT } from './inkfluid';
 
 /**
@@ -21,6 +22,7 @@ uniform sampler2D dye;
 uniform vec4 channel;
 uniform vec2 texel, uvScale, uvOffset;
 uniform float opacity, soft, glow, time, edgeOnly, sat, cream;
+${TONE_GLSL}
 ${NOISE}
 void main() {
   vec2 uv = (vUv - 0.5) * uvScale + 0.5 + uvOffset;
@@ -32,8 +34,8 @@ void main() {
   float lo = mix(0.14, 0.04, soft), hi = mix(0.42, 0.9, soft);
   float a = smoothstep(lo, hi, d);
   float core = smoothstep(0.45, 1.2, d);
-  vec3 wash = vec3(0.3, 0.31, 0.32);
-  vec3 ink = mix(wash, vec3(0.008, 0.01, 0.014), clamp(core * 1.1 + a * 0.35, 0.0, 1.0));
+  vec3 wash = tWash;
+  vec3 ink = mix(wash, tCore, clamp(core * 1.1 + a * 0.35, 0.0, 1.0));
   // 縁の光：墨の濃度の勾配 × せん断
   float dl = dot(texture2D(dye, uv + vec2(texel.x, 0.)), channel) - dot(texture2D(dye, uv - vec2(texel.x, 0.)), channel);
   float dd = dot(texture2D(dye, uv + vec2(0., texel.y)), channel) - dot(texture2D(dye, uv - vec2(0., texel.y)), channel);
@@ -49,7 +51,7 @@ void main() {
   float A = a * opacity * em;
   // クリープ：墨と縞になって混ざる明るいミルク色。縁にごく淡い翡翠
   float cr = smoothstep(0.08, 0.7, k.b + fib * 0.05) * cream * em;
-  vec3 milk = mix(vec3(0.62, 0.64, 0.62), vec3(0.9, 0.9, 0.86), smoothstep(0.3, 1.2, k.b));
+  vec3 milk = mix(tMilk * 0.7, tMilk, smoothstep(0.3, 1.2, k.b));
   float CA = cr * (1.0 - A * 0.55);
   vec3 outc = ink * A * (1.0 - CA) + milk * CA + light * em * (1.0 - soft * 0.7);
   gl_FragColor = vec4(outc, max(A, CA) );
@@ -76,7 +78,7 @@ export class InkLayers {
           dye: { value: null }, channel: { value: new THREE.Vector4(...ch) }, texel: { value: texel },
           uvScale: { value: new THREE.Vector2(1, 1) }, uvOffset: { value: new THREE.Vector2(0, 0) },
           opacity: { value: op }, soft: { value: soft }, glow: { value: glow }, time: { value: 0 },
-          edgeOnly: { value: edgeOnly }, sat: { value: 1 }, cream: { value: 0 },
+          edgeOnly: { value: edgeOnly }, sat: { value: 1 }, cream: { value: 0 }, ...TONE,
         },
         transparent: true, depthWrite: false,
         blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,

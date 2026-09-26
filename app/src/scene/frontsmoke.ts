@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
 import { NOISE } from '../core/gl';
+import { TONE, TONE_GLSL } from './tone';
 import { FLOW, FLOW_GLSL, WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
@@ -18,6 +19,7 @@ varying vec3 vW;
 uniform float time, amount, speed, seed, reveal;
 ${WIND_GLSL}
 ${FLOW_GLSL}
+${TONE_GLSL}
 uniform float drift;
 uniform sampler2D dye, aura;
 uniform vec4 rect, girlRect;
@@ -43,7 +45,7 @@ void main() {
   float lowBody = pow(smoothstep(0.35, -0.95, vW.y), 1.3);
   float a = dens * face * low * amount * reveal;
   a *= 1.0 + 0.0 * (sil + lowBody);
-  vec3 col = mix(vec3(0.22, 0.23, 0.24), vec3(0.008, 0.01, 0.014), clamp(smoothstep(0.3, 0.9, dens) * 1.1 + dens * 0.3, 0.0, 1.0));
+  vec3 col = mix(tWash * 0.75, tCore, clamp(smoothstep(0.3, 0.9, dens) * 1.1 + dens * 0.3, 0.0, 1.0));
   gl_FragColor = vec4(col * a, a);
 }`;
 
@@ -56,7 +58,7 @@ export class FrontSmoke {
       const mat = new THREE.ShaderMaterial({
         vertexShader: VERT, fragmentShader: FRAG,
         uniforms: {
-          ...FLOW,
+          ...FLOW, ...TONE,
           time: { value: 0 }, amount: { value: op }, speed: { value: sp }, seed: { value: z * 7.0 }, reveal: { value: 0 },
           wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, drift: { value: 0 }, dye: { value: null }, rect: { value: rect },
           aura: { value: aura }, girlRect: { value: girlRect },

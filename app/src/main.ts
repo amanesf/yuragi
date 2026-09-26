@@ -10,6 +10,7 @@ import { Backdrop, Backlight } from './scene/ink';
 import { DYE_TEXEL, InkFluid, RECT } from './scene/inkfluid';
 import { InkLayers } from './scene/inklayers';
 import { Ribbons } from './scene/ribbons';
+import { applyTone } from './scene/tone';
 import { FrontSmoke } from './scene/frontsmoke';
 import { InkRibbons } from './scene/inkribbons';
 import { WindFx } from './scene/windfx';
@@ -37,6 +38,8 @@ girlTex.generateMipmaps = true;
 girlTex.minFilter = THREE.LinearMipmapLinearFilter;
 girlTex.anisotropy = 4;
 
+const tone = applyTone(CONFIG.ink.tone);
+const clearCol = new THREE.Color(tone.edge[0] * 0.8, tone.edge[1] * 0.8, tone.edge[2] * 0.8);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
 const world: World = { time: 0, wind: { x: 0, z: 0 }, touch: { x: 0, y: 0, z: 0.3, s: 0 }, reveal: 0, gust: { amp: 0, dir: 1, front: -9 }, drift: 0 };
@@ -100,7 +103,7 @@ function toWorld(cx: number, cy: number) {
   ray.ray.intersectPlane(plane, p);
   return p;
 }
-let touchS = 0, flash = 0, burst = 0, lastInput = -99, windImpulse = 0, windImpulseZ = 0;
+let touchS = 0, flash = 0, burst = 0, windImpulse = 0, windImpulseZ = 0;
 interface P { x: number; y: number; t: number; down: number; moved: number; last: number }
 const pointers = new Map<number, P>();
 
@@ -109,7 +112,6 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   const p = toWorld(e.clientX, e.clientY);
   Object.assign(world.touch, { x: p.x, y: p.y, z: 0.3 });
   touchS = Math.max(touchS, 0.5);
-  lastInput = world.time;
 });
 window.addEventListener('pointermove', (e) => {
   pan.tx = (e.clientX / window.innerWidth - 0.5) * 2;
@@ -131,7 +133,6 @@ window.addEventListener('pointermove', (e) => {
   }
   Object.assign(world.touch, { x: b.x, y: b.y, z: 0.3 });
   touchS = Math.max(touchS, 0.7);
-  lastInput = world.time;
 });
 const release = (e: PointerEvent) => {
   const p = pointers.get(e.pointerId);
@@ -271,7 +272,6 @@ function intro(t: number) {
 }
 
 const title = document.getElementById('title')!;
-const hint = document.getElementById('hint')!;
 document.body.classList.add('ready');
 
 let acc = 0, prev = performance.now();
@@ -306,7 +306,6 @@ function frame(now: number) {
 
   title.classList.toggle('on', t > 5.5 && t < 13);
   title.classList.toggle('rest', t >= 13);
-  hint.classList.toggle('on', t > 12 && t - lastInput > 14 && Math.floor(t / 20) % 3 === 0);
 
   backlight.update(t, world.reveal);
   // 光の帯と粒は本描画（墨と同じ空間、墨が光を隠せる）と、にじみ用の光の板の両方に出す。
@@ -317,7 +316,7 @@ function frame(now: number) {
   camera.layers.set(0);
   girl.mode = 0;
   renderer.setRenderTarget(post.hdr);
-  renderer.setClearColor(0x0c0e10, 1);
+  renderer.setClearColor(clearCol, 1);
   renderer.clear();
   renderer.render(scene, camera);
   // 2) 光の板：光るものだけ。少女は黒い遮蔽物として描き、後ろを通る光を隠す

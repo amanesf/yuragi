@@ -14,6 +14,8 @@ export const CONFIG = {
     smoke: 1,
     /** 画面の縁に残る黒いうねり。 */
     periphery: 1,
+    /** 墨の色合い：mono（無彩色）/ blue（青墨）/ sepia（茶墨）/ jade（翡翠墨）/ violet（紫墨） */
+    tone: 'mono' as string,
     /** 墨が流れる速さ。 */
     speed: 1,
     /** 流体感：媒質を撫でる流れの強さ。 */
@@ -103,5 +105,5 @@ export const CONFIG = {
 new URLSearchParams(location.search).forEach((v, k) => {
   const [g, f] = k.split('.');
   const group = (CONFIG as Record<string, Record<string, unknown>>)[g];
-  if (group && f in group && typeof group[f] === 'number') group[f] = Number(v);
+  if (group && f in group) group[f] = typeof group[f] === 'number' ? Number(v) : v;
 });

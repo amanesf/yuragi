@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
 import { NOISE } from '../core/gl';
+import { TONE, TONE_GLSL } from './tone';
 import { FLOW, FLOW_GLSL, WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
@@ -47,6 +48,7 @@ void main() {
 
 const RIB_FRAG_REAL = /* glsl */ `
 uniform float time, seed, opacity, reveal;
+${TONE_GLSL}
 varying float vS, vSide;
 varying vec3 vW;
 ${NOISE}
@@ -66,7 +68,7 @@ void main() {
   // 暗い背景でも読めるよう、縁は明るい煙色、芯は漆黒
   // 流体の墨と同じ材質（薄墨→漆黒）
   float core = smoothstep(0.45, 1.0, d);
-  vec3 col = mix(vec3(0.22, 0.23, 0.24), vec3(0.008, 0.01, 0.014), clamp(core * 1.1 + d * 0.35, 0.0, 1.0));
+  vec3 col = mix(tWash * 0.75, tCore, clamp(core * 1.1 + d * 0.35, 0.0, 1.0));
   float a = clamp(d * opacity * 1.25, 0.0, 0.95);
   if (a < 0.004) discard;
   gl_FragColor = vec4(col * a, a);
@@ -99,6 +101,7 @@ void main() {
 
 const MOTE_FRAG = /* glsl */ `
 uniform float opacity, time;
+${TONE_GLSL}
 varying float vA;
 varying float vSeed;
 ${NOISE}
@@ -109,7 +112,7 @@ void main() {
   float d = smoothstep(0.5, 0.05, length(c) + (n - 0.5) * 0.5);
   float a = d * vA * opacity;
   if (a < 0.003) discard;
-  vec3 col = mix(vec3(0.22, 0.23, 0.24), vec3(0.008, 0.01, 0.014), clamp(d * 1.2, 0.0, 1.0));
+  vec3 col = mix(tWash * 0.75, tCore, clamp(d * 1.2, 0.0, 1.0));
   gl_FragColor = vec4(col * a, a);
 }`;
 
@@ -140,7 +143,7 @@ export class InkRibbons {
           turns: { value: 0.5 + Math.random() * 0.7 }, radius: { value: 0.5 + Math.random() * 0.6 },
           y0: { value: low ? -1.3 : -0.5 }, y1: { value: low ? -0.1 + Math.random() * 0.5 : 0.9 },
           width: { value: 0.07 + Math.random() * 0.12 }, speed: { value: (i % 2 ? 1 : -1) * (0.03 + Math.random() * 0.05) },
-          ...FLOW,
+          ...FLOW, ...TONE,
           reveal: { value: 0 }, opacity: { value: 0.8 }, drift: { value: 0 },
           wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() },
         },
@@ -163,7 +166,7 @@ export class InkRibbons {
     this.moteMat = new THREE.ShaderMaterial({
       vertexShader: MOTE_VERT, fragmentShader: MOTE_FRAG,
       uniforms: {
-        ...FLOW,
+        ...FLOW, ...TONE,
         time: { value: 0 }, px: { value: 800 }, reveal: { value: 0 }, drift: { value: 0 }, climax: { value: 0 }, opacity: { value: 0.5 },
         wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() },
       },

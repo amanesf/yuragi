@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NOISE } from '../core/gl';
+import { TONE, TONE_GLSL } from './tone';
 import { CONFIG } from '../config';
 import { GIRL_H, GIRL_PX, GIRL_W, WIND_GLSL, setWindUniforms, type World } from './common';
 import { RECT } from './inkfluid';
@@ -76,6 +77,7 @@ void main() {
 const FRAG = /* glsl */ `
 uniform sampler2D map, aura, fvel, fdye, regions;
 uniform float time, reveal, rim, dissolve, speed, warp, aura2, mode;
+${TONE_GLSL}
 uniform vec4 frect;
 varying vec2 vUv;
 varying vec2 vWorld;
@@ -111,7 +113,7 @@ void main() {
   }
   tail *= melt * (0.55 + 0.45 * fbm(vUv * vec2(30.0, 12.0) - time * 0.1));
   float inkTail = max(tail - c.a, 0.0);
-  c.rgb = mix(c.rgb, vec3(0.02, 0.024, 0.03), inkTail / max(c.a + inkTail, 1e-3));
+  c.rgb = mix(c.rgb, tCore * 1.5, inkTail / max(c.a + inkTail, 1e-3));
   c.a = max(c.a, inkTail);
   // 現れ方：霧から下へ向かって結晶する
   float n = fbm(vUv * vec2(6.0, 11.0) + 2.0);
@@ -147,14 +149,14 @@ void main() {
   // 墨に溶ける：透けて後ろの灰色を見せるのではなく、まず墨色に染まり、墨の筋になってほどける
   float gone = (1.0 - smoothstep(dth - 0.04, dth + 0.04, dn)) * step(0.001, dw);
   float wisp = smoothstep(0.35, 0.75, fbm(vUv * vec2(26.0, 9.0) + vec2(0.0, -time * 0.15)));
-  col = mix(col, vec3(0.012, 0.015, 0.02), gone);
+  col = mix(col, tCore * 1.5, gone);
   a *= 1.0 - gone * (0.35 + 0.65 * (1.0 - wisp)) * smoothstep(0.4, 1.0, edgeNear + edgeFar * 0.5);
   if (a < 0.03) discard;
   // 溶けかけの縁は墨に染まる
   float stain = dw * (1.0 - smoothstep(dth, dth + 0.3, dn));
   // 外から墨が染み込む：流体の墨が触れている縁は墨色に
   stain = max(stain, clamp(inkHere * 1.2, 0.0, 1.0) * dw * (edgeNear + edgeFar * 0.7));
-  col = mix(col, vec3(0.018, 0.022, 0.028), clamp(stain * 1.4, 0.0, 0.92));
+  col = mix(col, tCore * 1.5, clamp(stain * 1.4, 0.0, 0.92));
   float bleedRim = exp(-pow((dn - dth) / 0.025, 2.0)) * dw;
   // 墨の世界に馴染ませる：影は青へ、全体はわずかに沈める
   // 原画の色はいじらない（イラストとして見せる）
@@ -183,7 +185,7 @@ export class Girl {
         map: { value: map }, regions: { value: regions },
         time: { value: 0 }, wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() },
         reveal: { value: 0 }, rim: { value: 1 }, aura: { value: aura },
-        dissolve: { value: CONFIG.ink.dissolve }, warp: { value: 1 }, aura2: { value: 0 }, mode: { value: 0 },
+        dissolve: { value: CONFIG.ink.dissolve }, warp: { value: 1 }, aura2: { value: 0 }, mode: { value: 0 }, ...TONE,
         fvel: { value: null }, fdye: { value: null }, frect: { value: new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h) }, speed: { value: CONFIG.ink.speed }, sway: { value: CONFIG.wind.sway }, hairAmp: { value: CONFIG.wind.hair },
       },
       transparent: true, depthWrite: true, side: THREE.DoubleSide,
