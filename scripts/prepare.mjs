@@ -22,7 +22,12 @@ for (let i = 0; i < W * H; i++) {
 // 一画素ぶん縁を削って、にじみを消す
 const alpha = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).extractChannel(3).blur(0.8).threshold(1, { greyscale: true }).raw().toBuffer();
 const a2 = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).extractChannel(3).raw().toBuffer();
-for (let i = 0; i < W * H; i++) rgba[i * 4 + 3] = Math.min(a2[i], alpha[i]);
+for (let i = 0; i < W * H; i++) {
+  const a = Math.min(a2[i], alpha[i]);
+  rgba[i * 4 + 3] = a;
+  // 透明な画素の色は墨色にしておく（溶ける演出で引き伸ばしたとき、マゼンタが滲まないように）
+  if (a < 200) { const k = a / 200; for (let c = 0; c < 3; c++) rgba[i * 4 + c] = Math.round(rgba[i * 4 + c] * k + 8 * (1 - k)); }
+}
 await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).webp({ quality: 92, alphaQuality: 100 }).toFile(OUT + 'girl.webp');
 
 const reg = await sharp(REG).resize(W, H).raw().toBuffer();

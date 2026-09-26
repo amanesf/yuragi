@@ -11,7 +11,7 @@ const FINAL = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D src;
 uniform vec2 res;
-uniform float time, flash, curtain;
+uniform float time, flash, curtain, sat;
 float h(vec2 p);
 float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -24,6 +24,8 @@ void main() {
   // ハイライトの肩：1 を越える光だけをなめらかに寝かせる
   vec3 over = max(col - 0.85, 0.0);
   col = min(col, 0.85) + over / (1.0 + over * 1.6);
+  float l0 = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(vec3(l0), col, sat);
   // 深い墨はわずかに青へ
   float l = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(col, col * vec3(0.86, 0.97, 1.08), smoothstep(0.35, 0.0, l) * 0.6);
@@ -57,7 +59,7 @@ export class Post {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.6, 0.35, 0.92);
     this.final = new Pass(FINAL, {
       src: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
-      time: { value: 0 }, flash: { value: 0 }, curtain: { value: 1 },
+      time: { value: 0 }, flash: { value: 0 }, curtain: { value: 1 }, sat: { value: 1 },
     });
   }
 
@@ -69,7 +71,8 @@ export class Post {
 
   set strength(v: number) { this.bloom.strength = v; }
 
-  render(r: THREE.WebGLRenderer, time: number, flash: number, curtain = 1) {
+  render(r: THREE.WebGLRenderer, time: number, flash: number, curtain = 1, sat = 1) {
+    this.final.u.sat.value = sat;
     this.final.u.curtain.value = curtain;
     this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.hdr, 0, false);
     this.final.u.time.value = time;

@@ -69,3 +69,14 @@ float fbm(vec2 p) {
 }
 `;
 
+
+/** 読むものと書くものを毎ステップ入れ替える二枚組。 */
+export class PingPong {
+  read: THREE.WebGLRenderTarget;
+  write: THREE.WebGLRenderTarget;
+  constructor(w: number, h: number, linear = true) {
+    this.read = target(w, h, linear);
+    this.write = target(w, h, linear);
+  }
+  swap() { [this.read, this.write] = [this.write, this.read]; }
+}

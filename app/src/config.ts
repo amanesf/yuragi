@@ -16,25 +16,43 @@ export const CONFIG = {
     periphery: 1,
     /** 墨が流れる速さ。 */
     speed: 1,
+    /** 渦の巻きの強さ（墨の糸の細かさ）。 */
+    vorticity: 1,
+    /** 墨が消えるまでの秒数（長いほど画面に墨が溜まる）。 */
+    life: 9,
+    /** 触れたときに落ちる墨。 */
+    touchInk: 1,
   },
   light: {
     /** ふだんの光の帯（細く）。 */
     base: 0.5,
     /** 高まったときの光（第二版くらい）。 */
     surge: 1.25,
-    /** 高まりの間隔（秒）と長さ（秒）。どちらも範囲からランダム。 */
-    surgeEvery: [25, 60] as [number, number],
-    surgeLength: [6, 13] as [number, number],
     /** 金と翡翠の粒。 */
     glitter: 0.6,
-    /** 輪郭の光（墨の縁が翡翠に光る）。 */
+    /** 輪郭の光（少女の縁が翡翠に光る）。 */
     rim: 0.6,
+    /** 墨の縁の光（かき乱された所だけ光る）。 */
+    inkGlow: 0.45,
   },
   butterflies: {
     /** 常に飛んでいる数。 */
     ambient: 4,
     /** 大きさ（ワールド単位）。 */
     size: [0.07, 0.11] as [number, number],
+  },
+  grade: {
+    /** 彩度。1 = 原画のまま。0 に近づけるほど墨と翡翠だけの世界へ。 */
+    saturation: 1,
+    /** 背景の明るさ。 */
+    paper: 1,
+  },
+  /** 高まり（静 → 高まり → 余韻）の周期。秒の範囲からランダム。 */
+  climax: {
+    every: [40, 90] as [number, number],
+    length: [9, 15] as [number, number],
+    /** 高まりの強さ。 */
+    power: 1,
   },
   wind: {
     /** 髪・袖・袴の揺れの大きさ。 */
