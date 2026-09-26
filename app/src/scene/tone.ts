@@ -16,6 +16,8 @@ export const TONES: Record<string, Tone> = {
   jade: { wash: [0.18, 0.3, 0.27], core: [0.008, 0.025, 0.02], mist: [0.5, 0.62, 0.58], edge: [0.05, 0.1, 0.09], milk: [0.85, 0.95, 0.9] },
   // D. 紫墨：夕暮れ
   violet: { wash: [0.3, 0.25, 0.34], core: [0.02, 0.012, 0.03], mist: [0.6, 0.56, 0.65], edge: [0.1, 0.08, 0.12], milk: [0.94, 0.88, 0.95] },
+  // C×D：翡翠の墨に、紫の霧とクリープ
+  mix: { wash: [0.18, 0.3, 0.27], core: [0.008, 0.025, 0.02], mist: [0.6, 0.56, 0.65], edge: [0.1, 0.08, 0.12], milk: [0.94, 0.88, 0.95] },
 };
 
 const v = (a: number[]) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -26,6 +28,16 @@ export const TONE = {
 export const TONE_GLSL = /* glsl */ `
 uniform vec3 tWash, tCore, tMist, tEdge, tMilk;
 `;
+
+/** 翡翠墨と紫墨のあいだを、ゆっくり（約90秒で一巡）行き来する。 */
+export function shiftTone(time: number) {
+  const k = 0.5 - 0.5 * Math.cos((time / 90) * Math.PI * 2);
+  const a = TONES.jade, b = TONES.violet;
+  const l = (x: number[], y: number[]) => new THREE.Vector3(x[0] + (y[0] - x[0]) * k, x[1] + (y[1] - x[1]) * k, x[2] + (y[2] - x[2]) * k);
+  TONE.tWash.value.copy(l(a.wash, b.wash)); TONE.tCore.value.copy(l(a.core, b.core)); TONE.tMist.value.copy(l(a.mist, b.mist));
+  TONE.tEdge.value.copy(l(a.edge, b.edge)); TONE.tMilk.value.copy(l(a.milk, b.milk));
+  return TONE.tEdge.value;
+}
 
 export function applyTone(name: string) {
   const t = TONES[name] ?? TONES.mono;

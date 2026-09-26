@@ -10,7 +10,7 @@ import { Backdrop, Backlight } from './scene/ink';
 import { DYE_TEXEL, InkFluid, RECT } from './scene/inkfluid';
 import { InkLayers } from './scene/inklayers';
 import { Ribbons } from './scene/ribbons';
-import { applyTone } from './scene/tone';
+import { applyTone, shiftTone } from './scene/tone';
 import { FrontSmoke } from './scene/frontsmoke';
 import { InkRibbons } from './scene/inkribbons';
 import { WindFx } from './scene/windfx';
@@ -38,7 +38,7 @@ girlTex.generateMipmaps = true;
 girlTex.minFilter = THREE.LinearMipmapLinearFilter;
 girlTex.anisotropy = 4;
 
-const tone = applyTone(CONFIG.ink.tone);
+const tone = applyTone(CONFIG.ink.tone === 'shift' ? 'jade' : CONFIG.ink.tone);
 const clearCol = new THREE.Color(tone.edge[0] * 0.8, tone.edge[1] * 0.8, tone.edge[2] * 0.8);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
@@ -293,6 +293,7 @@ function frame(now: number) {
   fluid.step(renderer, Math.min(Math.max(real, 1 / 120), 1 / 30), t, { x: world.wind.x + world.gust.amp * world.gust.dir * 0.5, z: world.wind.z });
 
   FLOW.fvel.value = fluid.vel.read.texture;
+  if (CONFIG.ink.tone === 'shift') { const e = shiftTone(t); clearCol.setRGB(e.x * 0.8, e.y * 0.8, e.z * 0.8); }
   backdrop.update(t);
   inkLayers.update(t, 1 + climax * 0.25 + flash * 2);
   girl.update(t, world, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),
