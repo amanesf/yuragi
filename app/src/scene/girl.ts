@@ -132,7 +132,7 @@ void main() {
   vec2 px = vec2(vUv.x, 1.0 - vUv.y) * vec2(${GIRL_PX.w}.0, ${GIRL_PX.h}.0);
   float head = 1.0 - smoothstep(0.9, 1.3, length((px - vec2(388.0, 215.0)) / vec2(150.0, 175.0)));
   vec3 au = texture2D(aura, (vUv - 0.5) / 1.3 + 0.5).rgb;
-  float dw = clamp(au.b * 2.0, 0.0, 1.0) * dissolve * (1.0 - head);
+  float dw = clamp(au.b * 2.0, 0.0, 1.0) * dissolve * (1.0 - head) * (0.25 + 0.75 * smoothstep(380.0, 1150.0, px.y));
   float t = time * speed;
   float dn = fbm(vUv * vec2(6.0, 10.0) + vec2(0.0, t * 0.04)) * 0.7
           + fbm(vUv * vec2(17.0, 26.0) + vec2(t * 0.02, -t * 0.07)) * 0.4;
@@ -144,8 +144,11 @@ void main() {
   // 溶ける幅を広げる：輪郭のすぐ近く（near）＋少し内側（far）。墨が触れている所はさらに深く
   float edgeFar = 1.0 - au.g;
   float dth = dw * (edgeNear * 1.3 + edgeFar * 0.9 + inkHere * 0.7 * (edgeNear + edgeFar));
-  float keep = smoothstep(dth - 0.04, dth + 0.04, dn);
-  a *= mix(1.0, keep, step(0.001, dw));
+  // 墨に溶ける：透けて後ろの灰色を見せるのではなく、まず墨色に染まり、墨の筋になってほどける
+  float gone = (1.0 - smoothstep(dth - 0.04, dth + 0.04, dn)) * step(0.001, dw);
+  float wisp = smoothstep(0.35, 0.75, fbm(vUv * vec2(26.0, 9.0) + vec2(0.0, -time * 0.15)));
+  col = mix(col, vec3(0.012, 0.015, 0.02), gone);
+  a *= 1.0 - gone * (0.35 + 0.65 * (1.0 - wisp)) * smoothstep(0.4, 1.0, edgeNear + edgeFar * 0.5);
   if (a < 0.03) discard;
   // 溶けかけの縁は墨に染まる
   float stain = dw * (1.0 - smoothstep(dth, dth + 0.3, dn));

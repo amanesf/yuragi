@@ -294,14 +294,14 @@ function frame(now: number) {
 
   FLOW.fvel.value = fluid.vel.read.texture;
   backdrop.update(t);
-  inkLayers.update(t, 1 + climax * 0.75 + flash * 2);
+  inkLayers.update(t, 1 + climax * 0.25 + flash * 2);
   girl.update(t, world, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),
-    fluid.vel.read.texture, fluid.dye.read.texture, CONFIG.light.aura * (1 + climax * 0.4) * world.reveal);
+    fluid.vel.read.texture, fluid.dye.read.texture, CONFIG.light.aura * (1 + climax * 0.13) * world.reveal);
   frontSmoke.update(t, world, world.reveal, climax);
   inkRibbons.update(world, H, climax);
   windFx.update(world, real);
   ribbons.update(world, Math.min(1, climax + flash * 0.5));
-  glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + climax * 0.6));
+  glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + climax * 0.2));
   flies.update(world, real, flash);
 
   title.classList.toggle('on', t > 5.5 && t < 13);
@@ -337,7 +337,7 @@ function frame(now: number) {
   girl.mode = 0;
   camera.layers.set(0);
 
-  post.strength = 0.5 + climax * 0.2 + flash * 0.3;
+  post.strength = 0.7 + climax * 0.07 + flash * 0.3;
   post.render(renderer, camera, camera.position.length(), t, flash, CONFIG.grade.saturation, CONFIG.grade.contrast, CONFIG.grade.clarity);
   requestAnimationFrame(frame);
 }

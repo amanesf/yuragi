@@ -74,7 +74,7 @@ void main() {
     float run = 0.55 + 0.45 * sin(vS * 12.0 - time * (0.5 + 0.4 * h(fi + 2.0)) + fi * 2.3);
     threads += exp(-pow((vSide - pos) / wdt, 2.0)) * br * run;
   }
-  float b = (0.06 * core + 0.75 * threads) * (0.45 + 1.1 * streak);
+  float b = (0.1 * core + 1.3 * threads) * (0.45 + 1.1 * streak);
   b += 0.0 * fib;
   vec3 c = col * b + vec3(1.0, 0.8, 0.45) * spark * 0.8 * (1.0 - abs(vSide));
   c *= smoothstep(0.0, 0.06, vS) * smoothstep(1.0, 0.94, vS) * vFade * vFace * intensity;

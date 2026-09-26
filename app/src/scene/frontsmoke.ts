@@ -41,7 +41,8 @@ void main() {
   float sil = texture2D(aura, (vW.xy - girlRect.xy) / girlRect.zw + 0.5).g;
   // 体の上では上半身だけ薄く、下半身はむしろ濃く（墨に沈む）
   float lowBody = pow(smoothstep(0.35, -0.95, vW.y), 1.3);
-  float a = dens * face * low * amount * reveal * mix(1.0 - 0.6 * sil, 1.0 + 0.6 * sil, lowBody);
+  float a = dens * face * low * amount * reveal;
+  a *= 1.0 + 0.0 * (sil + lowBody);
   vec3 col = mix(vec3(0.22, 0.23, 0.24), vec3(0.008, 0.01, 0.014), clamp(smoothstep(0.3, 0.9, dens) * 1.1 + dens * 0.3, 0.0, 1.0));
   gl_FragColor = vec4(col * a, a);
 }`;

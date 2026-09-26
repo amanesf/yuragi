@@ -29,9 +29,10 @@ const HALO = /* glsl */ `
 varying vec2 vUv;
 uniform float time, amount;
 void main() {
-  vec2 p = (vUv - vec2(0.5, 0.56)) * vec2(1.0, 0.62);
+  // 後光は胸から上だけ（下半身の後ろは墨の闇。溶けても灰色に透けない）
+  vec2 p = (vUv - vec2(0.5, 0.68)) * vec2(1.0, 0.75);
   float d = length(p);
-  float a = exp(-d * d * 9.0) * amount * (0.9 + 0.1 * sin(time * 0.7));
+  float a = exp(-d * d * 10.0) * amount * (0.9 + 0.1 * sin(time * 0.7)) * smoothstep(0.35, 0.6, vUv.y);
   vec3 col = mix(vec3(0.55, 0.62, 0.62), vec3(0.75, 0.95, 0.9), exp(-d * d * 30.0) * 0.4);
   gl_FragColor = vec4(col * a, a);
 }`;
