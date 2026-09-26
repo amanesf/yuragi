@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WIND_GLSL, setWindUniforms, type World } from './common';
+import { FLOW, FLOW_GLSL, WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
  * 金と翡翠の粒。少女のまわりをゆっくり巡りながら昇る。すべて頂点シェーダの中で決まるので CPU は何もしない。
@@ -11,6 +11,7 @@ const VERT = /* glsl */ `
 attribute vec4 seed;
 uniform float time, px, reveal, burst, level;
 ${WIND_GLSL}
+${FLOW_GLSL}
 uniform float drift;
 uniform vec4 touch;
 varying vec3 vCol;
@@ -33,6 +34,7 @@ void main() {
   p.x = mod(p.x + drift * (0.25 + 0.5 * seed.y) + 2.0, 4.0) - 2.0;
   p.y += abs(wx) * 0.05 * sin(seed.x * 30.0 + time);
   p.z += wind.y * 0.2;
+  p.xy += flowOffset(p.xy, 3.0) * (1.0 - near);
   // 触れた場所で渦を巻く
   vec3 d = p - touch.xyz;
   float f = exp(-dot(d, d) / 0.12) * touch.w;
@@ -76,6 +78,7 @@ export class Glitter {
     this.mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
+        ...FLOW,
         time: { value: 0 }, px: { value: 1000 }, reveal: { value: 0 }, burst: { value: 0 }, level: { value: 1 },
         wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, drift: { value: 0 }, touch: { value: new THREE.Vector4() },
       },

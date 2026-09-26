@@ -232,8 +232,7 @@ void main() {
     k.g += C.x * f * dt;
     k.r += C.z * f * dt;
     k.a += C.w * f * dt;
-    float ring = exp(-pow((length(d) - A.z * 0.8) / (A.z * 0.25), 2.0)) * A.w;
-    k.b += C.y * ring * dt;
+    k.b += C.y * f * dt;  // クリープ（明るい成分）を落とす
   }
 
   // 開幕の一滴：中央から墨が画面を覆う
@@ -244,7 +243,7 @@ void main() {
   vec2 dx = texture2D(vel, vUv + vec2(texel.x, 0.)).xy - texture2D(vel, vUv - vec2(texel.x, 0.)).xy;
   vec2 dy = texture2D(vel, vUv + vec2(0., texel.y)).xy - texture2D(vel, vUv - vec2(0., texel.y)).xy;
   float shear = (length(dx) + length(dy)) / (texel.x * 2.0);
-  k.b += smoothstep(1.0, 4.0, shear) * dt * 1.2;
+  k.b += smoothstep(2.0, 6.0, shear) * dt * 0.15;
 
   // 顔の周りの手前の墨は消える。開幕の晴れ間は顔から外へ広がる。
   float fm = faceMask(w, 0.6);
@@ -362,7 +361,7 @@ export class InkFluid {
     this.advectDye.u.vel.value = this.vel.read.texture;
     this.advectDye.u.src.value = this.dye.read.texture;
     (this.advectDye.u.keep.value as THREE.Vector4).set(
-      Math.exp(-1 / (life * 1.0)), Math.exp(-1 / (life * 0.7)), Math.exp(-1 / 1.4), Math.exp(-1 / (life * 1.4)));
+      Math.exp(-1 / (life * 1.0)), Math.exp(-1 / (life * 0.7)), Math.exp(-1 / (life * 0.9)), Math.exp(-1 / (life * 1.4)));
     this.advectDye.render(r, this.dye.write); this.dye.swap();
 
     const d = this.dyePass.u;

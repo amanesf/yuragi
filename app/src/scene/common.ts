@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 /** 少女の板の寸法（ワールド単位）。高さ 2、足元 y=-1、頭頂 y=+1。 */
 export const GIRL_PX = { w: 768, h: 1376 };
 export const GIRL_H = 2;
@@ -56,3 +57,24 @@ export function setWindUniforms(u: Record<string, { value: unknown }>, w: World)
   (u.wind.value as { set(x: number, y: number): void }).set(w.wind.x, w.wind.z);
   (u.gust.value as { set(x: number, y: number, z: number): void }).set(w.gust.amp, w.gust.dir, w.gust.front);
 }
+
+/**
+ * 流体に巻き込まれる：光の帯・墨の帯・粒・墨煙は、流体の速度に引かれて曲がる。
+ * ただ少女の周りを回るのではなく、墨と一緒にかき混ぜられる。
+ * すべての材質でこの uniform オブジェクトを共有し、main が毎フレーム速度テクスチャを差し替える。
+ */
+export const FLOW = {
+  fvel: { value: null as THREE.Texture | null },
+  frect: { value: new THREE.Vector4(0, 0.05, 3.0, 4.2) },
+  fmix: { value: 1 },
+};
+export const FLOW_GLSL = /* glsl */ `
+uniform sampler2D fvel;
+uniform vec4 frect;
+uniform float fmix;
+vec2 flowOffset(vec2 p, float k) {
+  vec2 v = texture2D(fvel, (p - frect.xy) / frect.zw + 0.5).xy * frect.zw * k * fmix;
+  float l = length(v);
+  return l > 0.4 ? v * 0.4 / l : v;
+}
+`;

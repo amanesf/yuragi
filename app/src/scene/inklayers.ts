@@ -20,7 +20,7 @@ varying vec2 vUv;
 uniform sampler2D dye;
 uniform vec4 channel;
 uniform vec2 texel, uvScale, uvOffset;
-uniform float opacity, soft, glow, time, edgeOnly, sat;
+uniform float opacity, soft, glow, time, edgeOnly, sat, cream;
 ${NOISE}
 void main() {
   vec2 uv = (vUv - 0.5) * uvScale + 0.5 + uvOffset;
@@ -47,7 +47,12 @@ void main() {
   vec2 c = vUv - 0.5;
   float em = mix(1.0, smoothstep(0.28, 0.5, max(abs(c.x) * 1.0, abs(c.y) * 0.8)), edgeOnly);
   float A = a * opacity * em;
-  gl_FragColor = vec4(ink * A + light * em * (1.0 - soft * 0.7), A);
+  // クリープ：墨と縞になって混ざる明るいミルク色。縁にごく淡い翡翠
+  float cr = smoothstep(0.08, 0.7, k.b + fib * 0.05) * cream * em;
+  vec3 milk = mix(vec3(0.62, 0.64, 0.62), vec3(0.9, 0.9, 0.86), smoothstep(0.3, 1.2, k.b));
+  float CA = cr * (1.0 - A * 0.55);
+  vec3 outc = ink * A * (1.0 - CA) + milk * CA + light * em * (1.0 - soft * 0.7);
+  gl_FragColor = vec4(outc, max(A, CA) );
 }`;
 
 export class InkLayers {
@@ -71,7 +76,7 @@ export class InkLayers {
           dye: { value: null }, channel: { value: new THREE.Vector4(...ch) }, texel: { value: texel },
           uvScale: { value: new THREE.Vector2(1, 1) }, uvOffset: { value: new THREE.Vector2(0, 0) },
           opacity: { value: op }, soft: { value: soft }, glow: { value: glow }, time: { value: 0 },
-          edgeOnly: { value: edgeOnly }, sat: { value: 1 },
+          edgeOnly: { value: edgeOnly }, sat: { value: 1 }, cream: { value: 0 },
         },
         transparent: true, depthWrite: false,
         blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
@@ -92,6 +97,7 @@ export class InkLayers {
       m.uniforms.dye.value = this.dye();
       m.uniforms.time.value = time;
     }
+    this.mats.forEach((m, i) => { m.uniforms.cream.value = [0.5, 0.9, 0.55, 0.3][i] * CONFIG.ink.cream; });
     this.mats.forEach((m, i) => { m.uniforms.glow.value = [0.5, 1, 1, 0.4][i] * glow * CONFIG.light.inkGlow; });
     this.mats[2].uniforms.opacity.value = 0.88 * CONFIG.ink.front;
     this.mats[3].uniforms.opacity.value = 0.8 * CONFIG.ink.front;

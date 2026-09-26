@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
-import { WIND_GLSL, setWindUniforms, type World } from './common';
+import { FLOW, FLOW_GLSL, WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
  * 光の帯。原画の翡翠の流れを、少女のまわりを巡る 3D の帯として描き直す。
@@ -14,6 +14,7 @@ attribute float s;
 attribute float side;
 uniform float time, seed, turns, radius, y0, y1, width, speed, reveal, widthScale;
 ${WIND_GLSL}
+${FLOW_GLSL}
 uniform vec4 touch;
 varying float vS, vSide, vFade;
 varying float vFace;
@@ -25,6 +26,7 @@ vec3 path(float s) {
   vec3 p = vec3(cos(a) * r, y, sin(a) * r * 0.75);
   p.x += windAt(p.x) * 0.35 * s + sin(time * 0.2 + seed) * 0.08;
   p.z += wind.y * 0.4 * s;
+  p.xy += flowOffset(p.xy, 2.5) * s;
   // 触れた場所へ寄っていく
   vec3 dt = touch.xyz - p;
   p += dt * touch.w * 0.45 * exp(-dot(dt, dt) / 0.35);
@@ -100,6 +102,7 @@ export class Ribbons {
           turns: { value: 0.7 + Math.random() * 0.8 }, radius: { value: 0.45 + Math.random() * 0.55 },
           y0: { value: low ? -1.25 : -0.6 }, y1: { value: low ? 0.1 + Math.random() * 0.4 : 0.95 },
           width: { value: 0.06 + Math.random() * 0.07 }, speed: { value: (i % 2 ? 1 : -1) * (0.05 + Math.random() * 0.07) },
+          ...FLOW,
           reveal: { value: 0 }, intensity: { value: 1 }, widthScale: { value: 1 },
           wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, touch: { value: new THREE.Vector4() },
           colA: { value: new THREE.Color(a) }, colB: { value: new THREE.Color(b) },

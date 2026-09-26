@@ -3,7 +3,7 @@ import './style.css';
 import { CONFIG } from './config';
 import { Post } from './core/post';
 import { Butterflies } from './scene/butterflies';
-import { GIRL_H, GIRL_W, type World } from './scene/common';
+import { FLOW, GIRL_H, GIRL_W, type World } from './scene/common';
 import { Girl } from './scene/girl';
 import { Glitter } from './scene/glitter';
 import { Backdrop, Backlight } from './scene/ink';
@@ -165,7 +165,7 @@ function emit(dt: number, strength: number) {
     const far = e.seed > 5;
     fluid.push({
       x, y, radius: 0.045, dx: ix * 0.09 * strength, dy: iy * 0.09 * strength, swirl: 0, radial: 0,
-      ink: far ? 0 : 1.6 * strength, inkR: far ? 0.8 * strength : 3 * strength, inkA: far ? 3 * strength : 0.8 * strength, light: 0, life: 0.25,
+      ink: far ? 0 : 1.6 * strength, inkR: far ? 0.8 * strength : 3 * strength, inkA: far ? 3 * strength : 0.8 * strength, light: (e.seed % 2 < 1 ? 3.2 : 0.6) * strength * CONFIG.ink.cream, life: 0.25,
     });
   }
 }
@@ -289,8 +289,10 @@ function frame(now: number) {
   const t = world.time;
   updateCamera(t, climax);
   // 流体はフレームに一度（重いので）。時間はまとめて進める
+  FLOW.fmix.value = CONFIG.ink.mix;
   fluid.step(renderer, Math.min(Math.max(real, 1 / 120), 1 / 30), t, { x: world.wind.x + world.gust.amp * world.gust.dir * 0.5, z: world.wind.z });
 
+  FLOW.fvel.value = fluid.vel.read.texture;
   backdrop.update(t);
   inkLayers.update(t, 1 + climax * 0.75 + flash * 2);
   girl.update(t, world, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),

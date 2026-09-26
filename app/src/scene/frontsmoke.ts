@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
 import { NOISE } from '../core/gl';
-import { WIND_GLSL, setWindUniforms, type World } from './common';
+import { FLOW, FLOW_GLSL, WIND_GLSL, setWindUniforms, type World } from './common';
 
 /**
  * 前面の墨煙。少女の手前を、薄く柔らかな煙がゆっくり横切る（二枚、深さと速さを変えて）。
@@ -17,13 +17,14 @@ varying vec2 vUv;
 varying vec3 vW;
 uniform float time, amount, speed, seed, reveal;
 ${WIND_GLSL}
+${FLOW_GLSL}
 uniform float drift;
 uniform sampler2D dye, aura;
 uniform vec4 rect, girlRect;
 ${NOISE}
 void main() {
   float t = time * speed * 0.04 + seed;
-  vec2 p = vW.xy * vec2(1.1, 0.8) + vec2(-t * 1.4 - drift * 0.5 - windAt(vW.x) * 0.15, t * 0.3);
+  vec2 p = (vW.xy - flowOffset(vW.xy, 4.0)) * vec2(1.1, 0.8) + vec2(-t * 1.4 - drift * 0.5 - windAt(vW.x) * 0.15, t * 0.3);
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, 1.3) - t));
   vec2 r = vec2(fbm(p + q * 2.0 + 1.7), fbm(p + q * 2.0 + 9.2));
   float n = fbm(p * 1.3 + r * 1.8);
@@ -54,6 +55,7 @@ export class FrontSmoke {
       const mat = new THREE.ShaderMaterial({
         vertexShader: VERT, fragmentShader: FRAG,
         uniforms: {
+          ...FLOW,
           time: { value: 0 }, amount: { value: op }, speed: { value: sp }, seed: { value: z * 7.0 }, reveal: { value: 0 },
           wind: { value: new THREE.Vector2() }, gust: { value: new THREE.Vector3() }, drift: { value: 0 }, dye: { value: null }, rect: { value: rect },
           aura: { value: aura }, girlRect: { value: girlRect },
