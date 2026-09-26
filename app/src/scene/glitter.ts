@@ -44,7 +44,7 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
   float big = step(0.95, fract(seed.x * 17.0));
-  gl_PointSize = px * (0.012 + 0.03 * big + near * 0.09) / -mv.z * (1.0 + f);
+  gl_PointSize = px * (0.008 + 0.018 * big + near * 0.06) / -mv.z * (1.0 + f);
   vNear = near;
   float tw = 0.5 + 0.5 * sin(time * (1.5 + 5.0 * fract(seed.z * 9.0)) + seed.w * 50.0);
   vCol = fract(seed.y * 5.3) < 0.45 ? vec3(1.0, 0.78, 0.4) : (fract(seed.y * 5.3) < 0.8 ? vec3(0.35, 1.0, 0.8) : vec3(0.85, 0.95, 1.0));

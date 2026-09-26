@@ -117,7 +117,7 @@ export class Post {
     this.copy = new Pass(`varying vec2 vUv; uniform sampler2D t; void main(){ gl_FragColor = texture2D(t, vUv); }`, { t: { value: this.glowRT.texture } });
     this.dofA = target(w, h);
     this.dofB = target(w, h);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.9, 0.55, 0.0);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.6, 0.3, 0.0);
     this.dof = new Pass(DOF, {
       src: { value: null }, depth: { value: this.hdr.depthTexture }, mask: { value: this.maskRT.texture },
       dir: { value: new THREE.Vector2(1, 0) }, res: { value: new THREE.Vector2(w, h) },

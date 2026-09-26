@@ -253,6 +253,8 @@ void main() {
   // 顔の周りの手前の墨は消える。開幕の晴れ間は顔から外へ広がる。
   float fm = faceMask(w, 0.6);
   k.g *= 1.0 - clamp(fm * dt * 10.0 * faceClear, 0.0, 1.0);
+  // クリープも顔にはかけない
+  k.b *= 1.0 - clamp(faceMask(w, 0.9) * dt * 8.0 * faceClear, 0.0, 1.0);
   float cl = 1.0 - smoothstep(clearing - 0.3, clearing, length((w - vec2(0.0, 0.35)) * vec2(1.2, 0.8)));
   k.g *= 1.0 - clamp(cl * dt * 3.0, 0.0, 1.0);
 

@@ -337,7 +337,7 @@ function frame(now: number) {
   girl.mode = 0;
   camera.layers.set(0);
 
-  post.strength = 0.7 + climax * 0.25 + flash * 0.4;
+  post.strength = 0.5 + climax * 0.2 + flash * 0.3;
   post.render(renderer, camera, camera.position.length(), t, flash, CONFIG.grade.saturation, CONFIG.grade.contrast, CONFIG.grade.clarity);
   requestAnimationFrame(frame);
 }

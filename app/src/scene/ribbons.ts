@@ -64,8 +64,19 @@ void main() {
   float cell = floor(vS * 400.0 + floor(vSide * 3.0) * 17.0);
   float spark = step(0.965, h(cell + seed * 13.0)) * (0.5 + 0.5 * sin(time * 6.0 + cell));
   vec3 col = mix(colA, colB, smoothstep(0.1, 0.9, vS + 0.2 * sin(time * 0.3 + seed)));
-  float b = (0.55 * core + 0.35 * fib * (0.3 + core)) * (0.5 + 1.4 * streak);
-  vec3 c = col * b + vec3(1.0, 0.8, 0.45) * spark * 1.4 * (1.0 - abs(vSide));
+  // 絹糸の束：髪の毛ほどの細い光の糸が並び、糸ごとに揺れと明るさがずれる
+  float threads = 0.0;
+  for (int i = 0; i < 9; i++) {
+    float fi = float(i);
+    float pos = -0.8 + fi * 0.2 + 0.07 * sin(vS * 18.0 + time * 0.5 + fi * 1.7 + seed * 9.0);
+    float wdt = 0.025 + 0.02 * h(fi + seed * 7.0);
+    float br = 0.35 + 0.65 * h(fi * 3.1 + seed * 5.0);
+    float run = 0.55 + 0.45 * sin(vS * 12.0 - time * (0.5 + 0.4 * h(fi + 2.0)) + fi * 2.3);
+    threads += exp(-pow((vSide - pos) / wdt, 2.0)) * br * run;
+  }
+  float b = (0.06 * core + 0.75 * threads) * (0.45 + 1.1 * streak);
+  b += 0.0 * fib;
+  vec3 c = col * b + vec3(1.0, 0.8, 0.45) * spark * 0.8 * (1.0 - abs(vSide));
   c *= smoothstep(0.0, 0.06, vS) * smoothstep(1.0, 0.94, vS) * vFade * vFace * intensity;
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -126,7 +137,7 @@ export class Ribbons {
       const u = m.uniforms;
       const extra = i >= 4 ? surge : 1;
       u.time.value = w.time; u.reveal.value = w.reveal; u.intensity.value = lvl * extra;
-      u.widthScale.value = 0.75 + 0.45 * surge;
+      u.widthScale.value = 0.55 + 0.25 * surge;
       setWindUniforms(u, w);
       (u.touch.value as THREE.Vector4).set(w.touch.x, w.touch.y, w.touch.z, w.touch.s);
     });
