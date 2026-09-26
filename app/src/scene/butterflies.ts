@@ -174,7 +174,7 @@ export class Butterflies {
       // 打ち下ろしは速く、打ち上げはゆっくり
       const u01 = 0.5 + 0.5 * flap;
       const open = gliding ? 0.15 : -0.35 + 1.55 * Math.pow(u01, 0.7);
-      f.L.rotation.y = -open; f.R.rotation.y = open;
+      f.L.rotation.y = open; f.R.rotation.y = -open; // 翅先が上へ開く
 
       const fadeIn = Math.min(1, f.age / 1.5), fadeOut = Math.min(1, (f.life - f.age) / 2);
       f.mat.uniforms.alpha.value = Math.max(0, Math.min(fadeIn, fadeOut)) * Math.min(1, w.reveal * 1.5) * (f.flyby ? 0.55 : 1);

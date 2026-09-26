@@ -73,8 +73,14 @@ uniform sampler2D fvel;
 uniform vec4 frect;
 uniform float fmix;
 vec2 flowOffset(vec2 p, float k) {
-  vec2 v = texture2D(fvel, (p - frect.xy) / frect.zw + 0.5).xy * frect.zw * k * fmix;
+  // 細かい乱れは拾わない：広い範囲の平均の流れだけで、なめらかに曲げる
+  vec2 uv = (p - frect.xy) / frect.zw + 0.5;
+  vec2 o = vec2(0.06);
+  vec2 v = texture2D(fvel, uv).xy + texture2D(fvel, uv + o).xy + texture2D(fvel, uv - o).xy
+         + texture2D(fvel, uv + vec2(o.x, -o.y)).xy + texture2D(fvel, uv + vec2(-o.x, o.y)).xy;
+  v = v * 0.2 * frect.zw * k * 0.5 * fmix;
+  if (!(abs(v.x) < 1.0) || !(abs(v.y) < 1.0)) return vec2(0.0);
   float l = length(v);
-  return l > 0.4 ? v * 0.4 / l : v;
+  return l > 0.15 ? v * 0.15 / l : v;
 }
 `;

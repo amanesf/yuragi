@@ -72,6 +72,8 @@ vec4 sampleCubic(vec2 uv) {
 void main() {
   vec2 v = texture2D(vel, vUv).xy;
   vec4 s = cubic > 0.5 ? sampleCubic(vUv - v * dt) : texture2D(src, vUv - v * dt);
+  s = clamp(s, vec4(-10.0), vec4(10.0));
+  if (!(abs(s.x) < 10.0) || !(abs(s.y) < 10.0) || !(abs(s.z) < 10.0) || !(abs(s.w) < 10.0)) s = vec4(0.0);
   gl_FragColor = s * pow(keep, vec4(dt));
 }`;
 
@@ -140,6 +142,7 @@ void main() {
     v += (B.xy + vec2(-d.y, d.x) / A.z * B.z + d / A.z * B.w) / rect.zw * f * dt;
   }
 
+  if (!(abs(v.x) < 10.0) || !(abs(v.y) < 10.0)) v = vec2(0.0); // 発散したら止める
   float s = length(v);
   if (s > 0.4) v *= 0.4 / s;
   gl_FragColor = vec4(v, 0., 1.);
@@ -183,7 +186,9 @@ void main() {
   v *= 1.0 - m * 0.6;
   // 矩形の縁で止める
   vec2 e = smoothstep(0.0, 0.03, vUv) * smoothstep(0.0, 0.03, 1.0 - vUv);
-  gl_FragColor = vec4(v * e.x * e.y, 0., 1.);
+  v *= e.x * e.y;
+  if (!(abs(v.x) < 10.0) || !(abs(v.y) < 10.0)) v = vec2(0.0);
+  gl_FragColor = vec4(v, 0., 1.);
 }`;
 
 const DYE = COMMON + NOISE + /* glsl */ `
@@ -251,6 +256,7 @@ void main() {
   float cl = 1.0 - smoothstep(clearing - 0.3, clearing, length((w - vec2(0.0, 0.35)) * vec2(1.2, 0.8)));
   k.g *= 1.0 - clamp(cl * dt * 3.0, 0.0, 1.0);
 
+  if (!(k.x < 100.0) || !(k.y < 100.0) || !(k.z < 100.0) || !(k.w < 100.0)) k = vec4(0.0);
   gl_FragColor = clamp(k, vec4(0.0), vec4(2.0, 2.0, 1.2, 1.6));
 }`;
 

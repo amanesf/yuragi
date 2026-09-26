@@ -87,7 +87,8 @@ void main() {
   // 周辺減光（少女には弱く）
   col *= mix(1.0, 0.45, smoothstep(0.08, 0.5, r2 * 1.6) * (1.0 - m * 0.6));
   col += flash * vec3(0.3, 0.9, 0.75) * (1.0 - r2 * 2.0) * 0.2;
-  gl_FragColor = vec4(col, 1.0);
+  if (!(col.r < 1e4) || !(col.g < 1e4) || !(col.b < 1e4)) col = vec3(0.0);
+  gl_FragColor = vec4(max(col, 0.0), 1.0);
 }`;
 
 export class Post {
