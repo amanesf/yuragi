@@ -42,7 +42,7 @@ const FINAL = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D src, glow, glowRaw, mask, raw;
 uniform vec2 res;
-uniform float time, flash, sat, contrast, clarity, girlBright, girlSat, faceY;
+uniform float time, flash, sat, contrast, clarity, girlBright, girlSat, faceY, popSat, popLocal, popContrast;
 float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main() {
   vec2 c = vUv - 0.5;
@@ -87,6 +87,17 @@ void main() {
   // 周辺減光（少女には弱く）
   col *= mix(1.0, 0.45, smoothstep(0.08, 0.5, r2 * 1.6) * (1.0 - m * 0.6));
   col += flash * vec3(0.3, 0.9, 0.75) * (1.0 - r2 * 2.0) * 0.2;
+  // 仕上げ「Pop」：画面全体の彩度（鮮やかさ）と、明暗のメリハリ（局所コントラスト）
+  vec2 pr = 3.0 / res;
+  vec3 near4 = (texture2D(src, vUv + vec2(pr.x, 0.)).rgb + texture2D(src, vUv - vec2(pr.x, 0.)).rgb
+              + texture2D(src, vUv + vec2(0., pr.y)).rgb + texture2D(src, vUv - vec2(0., pr.y)).rgb) * 0.25;
+  float lc = dot(col, vec3(0.299, 0.587, 0.114)) - dot(near4, vec3(0.299, 0.587, 0.114));
+  col += lc * popLocal;
+  col = (col - 0.45) * popContrast + 0.45;
+  float lp = dot(col, vec3(0.299, 0.587, 0.114));
+  float chroma = max(col.r, max(col.g, col.b)) - min(col.r, min(col.g, col.b));
+  // くすんだ色ほど強く持ち上げる（肌や光が飽和しすぎないように）
+  col = mix(vec3(lp), col, 1.0 + (popSat - 1.0) * (1.0 - smoothstep(0.1, 0.6, chroma)));
   if (!(col.r < 1e4) || !(col.g < 1e4) || !(col.b < 1e4)) col = vec3(0.0);
   gl_FragColor = vec4(max(col, 0.0), 1.0);
 }`;
@@ -126,7 +137,7 @@ export class Post {
     this.final = new Pass(FINAL, {
       src: { value: this.hdr.texture }, glow: { value: this.glowRT.texture }, glowRaw: { value: this.glowRaw.texture }, mask: { value: this.maskRT.texture },
       raw: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
-      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, faceY: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 },
+      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, faceY: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 }, popSat: { value: 1 }, popLocal: { value: 0 }, popContrast: { value: 1 },
     });
   }
 
@@ -147,6 +158,9 @@ export class Post {
     this.final.u.faceY.value = f.y * 0.5 + 0.5;
     this.final.u.girlBright.value = CONFIG.grade.girlBright;
     this.final.u.girlSat.value = CONFIG.grade.girlSat;
+    this.final.u.popSat.value = CONFIG.grade.popSat;
+    this.final.u.popLocal.value = CONFIG.grade.popLocal;
+    this.final.u.popContrast.value = CONFIG.grade.popContrast;
     // にじみの前の光を控えておく（あとで差を取り、にじみだけを足す）
     this.copy.render(r, this.glowRaw);
     this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.glowRT, 0, false);

@@ -75,6 +75,10 @@ export const CONFIG = {
     /** 少女の明るさと彩度。 */
     girlBright: 1.15,
     girlSat: 1.2,
+    /** 仕上げ「Pop」：全体の彩度・明暗のメリハリ・コントラスト（1 / 0 / 1 で効果なし）。 */
+    popSat: 1.45,
+    popLocal: 0.6,
+    popContrast: 1.08,
   },
   /** 高まり（静 → 高まり → 余韻）の周期。秒の範囲からランダム。 */
   climax: {
