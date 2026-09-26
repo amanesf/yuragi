@@ -42,7 +42,7 @@ const FINAL = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D src, glow, glowRaw, mask, raw;
 uniform vec2 res;
-uniform float time, flash, sat, contrast, clarity, girlBright, girlSat, faceY, popSat, popLocal, popContrast;
+uniform float time, flash, sat, contrast, clarity, girlBright, girlSat, faceY, popSat, popLocal, popContrast, washi;
 float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main() {
   vec2 c = vUv - 0.5;
@@ -102,7 +102,8 @@ void main() {
   vec2 wp = vUv * res;
   float fib = h(floor(wp / vec2(7.0, 1.6))) * 0.6 + h(floor(wp / vec2(1.6, 9.0)) + 17.0) * 0.4;
   float blot = h(floor(wp / 60.0)) * 0.5 + h(floor(wp / 23.0) + 5.0) * 0.5;
-  col *= 0.975 + 0.035 * fib + 0.02 * (blot - 0.5);
+  col *= 1.0 + washi * (0.1 * (fib - 0.5) + 0.06 * (blot - 0.5));
+  col += washi * 0.012 * vec3(1.0, 0.97, 0.9) * fib;
   if (!(col.r < 1e4) || !(col.g < 1e4) || !(col.b < 1e4)) col = vec3(0.0);
   gl_FragColor = vec4(max(col, 0.0), 1.0);
 }`;
@@ -142,7 +143,7 @@ export class Post {
     this.final = new Pass(FINAL, {
       src: { value: this.hdr.texture }, glow: { value: this.glowRT.texture }, glowRaw: { value: this.glowRaw.texture }, mask: { value: this.maskRT.texture },
       raw: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
-      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, faceY: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 }, popSat: { value: 1 }, popLocal: { value: 0 }, popContrast: { value: 1 },
+      time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, faceY: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 }, popSat: { value: 1 }, popLocal: { value: 0 }, popContrast: { value: 1 }, washi: { value: 1 },
     });
   }
 
@@ -166,6 +167,7 @@ export class Post {
     this.final.u.popSat.value = CONFIG.grade.popSat;
     this.final.u.popLocal.value = CONFIG.grade.popLocal;
     this.final.u.popContrast.value = CONFIG.grade.popContrast;
+    this.final.u.washi.value = CONFIG.grade.washi;
     // にじみの前の光を控えておく（あとで差を取り、にじみだけを足す）
     this.copy.render(r, this.glowRaw);
     this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.glowRT, 0, false);

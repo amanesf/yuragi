@@ -23,8 +23,8 @@ html, body {
 #title h1 { margin: 0; line-height: 0; }
 /* 筆文字：上から一筆ずつ書かれていくように現れる */
 #title h1 img {
-  height: min(34vh, 300px); width: auto; display: block;
-  filter: drop-shadow(0 0 12px rgba(80, 255, 200, .35));
+  height: min(22vh, 190px); width: auto; display: block;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, .9)) drop-shadow(0 0 10px rgba(80, 255, 200, .45));
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 55%);
   mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 55%);
   -webkit-mask-size: 100% 220%; mask-size: 100% 220%;
@@ -34,7 +34,7 @@ html, body {
 #title.on h1 img, #title.rest h1 img { -webkit-mask-position: 0 0; mask-position: 0 0; }
 #title p { margin: 6px 12px 0 0; font-size: 14px; letter-spacing: .6em; opacity: .9; }
 #title.on { opacity: 1; filter: none; }
-#title.rest { opacity: .62; transform: scale(.85); transform-origin: top right; }
+#title.rest { opacity: .92; transform: scale(.85); transform-origin: top right; }
 
 #hint {
   position: fixed; left: 0; right: 0;

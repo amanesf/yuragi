@@ -81,6 +81,8 @@ export const CONFIG = {
     popSat: 1.45,
     popLocal: 0.6,
     popContrast: 1.08,
+    /** 和紙の質感（0 で無し）。 */
+    washi: 1,
   },
   /** 高まり（静 → 高まり → 余韻）の周期。秒の範囲からランダム。 */
   climax: {
