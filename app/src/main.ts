@@ -311,8 +311,9 @@ function frame(now: number) {
   hint.classList.toggle('on', t > 12 && t - lastInput > 14 && Math.floor(t / 20) % 3 === 0);
 
   backlight.update(t, world.reveal);
-  // 光るものは光の板（layer 1）だけに描く
-  for (const g of [ribbons.group, glitter.points, flies.group, windFx.group]) g.traverse((o) => o.layers.set(1));
+  // 光の帯と粒は本描画（墨と同じ空間、墨が光を隠せる）と、にじみ用の光の板の両方に出す。
+  // 蝶と花びらは本描画だけ（にじませない）
+  for (const g of [ribbons.group, glitter.points]) g.traverse((o) => { o.layers.set(0); o.layers.enable(1); });
 
   // 1) 本描画：少女・墨・背景
   camera.layers.set(0);

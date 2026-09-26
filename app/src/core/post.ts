@@ -40,7 +40,7 @@ void main() {
 
 const FINAL = /* glsl */ `
 varying vec2 vUv;
-uniform sampler2D src, glow, mask, raw;
+uniform sampler2D src, glow, glowRaw, mask, raw;
 uniform vec2 res;
 uniform float time, flash, sat, contrast, clarity, girlBright, girlSat, faceY;
 float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
@@ -78,7 +78,8 @@ void main() {
 
   vec3 col = mix(bg, girl, m);
   // 光（ブルーム込み）を足す。少女の上では控えめに
-  vec3 gl = texture2D(glow, vUv).rgb;
+  // 光そのものは本描画に入っている。ここではにじみの分だけを足す
+  vec3 gl = max(texture2D(glow, vUv).rgb - texture2D(glowRaw, vUv).rgb, 0.0);
   col += gl * (1.0 - m * 0.35);
   // ハイライトの肩
   vec3 over = max(col - 0.9, 0.0);
@@ -96,6 +97,8 @@ export class Post {
   glowRT: THREE.WebGLRenderTarget;
   /** 少女のシルエット */
   maskRT: THREE.WebGLRenderTarget;
+  private readonly glowRaw: THREE.WebGLRenderTarget;
+  private readonly copy: Pass;
   private readonly dofA: THREE.WebGLRenderTarget;
   private readonly dofB: THREE.WebGLRenderTarget;
   private readonly bloom: UnrealBloomPass;
@@ -109,6 +112,8 @@ export class Post {
     this.glowRT = target(w, h, true, true);
     this.maskRT = target(w, h, true, true);
     this.maskRT.samples = 0;
+    this.glowRaw = target(w, h);
+    this.copy = new Pass(`varying vec2 vUv; uniform sampler2D t; void main(){ gl_FragColor = texture2D(t, vUv); }`, { t: { value: this.glowRT.texture } });
     this.dofA = target(w, h);
     this.dofB = target(w, h);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.9, 0.55, 0.0);
@@ -118,14 +123,14 @@ export class Post {
       near: { value: 0.05 }, far: { value: 50 }, focus: { value: 3.5 }, maxR: { value: 10 },
     });
     this.final = new Pass(FINAL, {
-      src: { value: this.dofB.texture }, glow: { value: this.glowRT.texture }, mask: { value: this.maskRT.texture },
+      src: { value: this.hdr.texture }, glow: { value: this.glowRT.texture }, glowRaw: { value: this.glowRaw.texture }, mask: { value: this.maskRT.texture },
       raw: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
       time: { value: 0 }, flash: { value: 0 }, sat: { value: 1 }, contrast: { value: 1.15 }, clarity: { value: 0.75 }, faceY: { value: 0.75 }, girlBright: { value: 1 }, girlSat: { value: 1 },
     });
   }
 
   resize(w: number, h: number) {
-    for (const t of [this.hdr, this.glowRT, this.maskRT, this.dofA, this.dofB]) t.setSize(w, h);
+    for (const t of [this.hdr, this.glowRT, this.glowRaw, this.maskRT, this.dofA, this.dofB]) t.setSize(w, h);
     this.bloom.setSize(w, h);
     (this.final.u.res.value as THREE.Vector2).set(w, h);
     (this.dof.u.res.value as THREE.Vector2).set(w, h);
@@ -141,13 +146,11 @@ export class Post {
     this.final.u.faceY.value = f.y * 0.5 + 0.5;
     this.final.u.girlBright.value = CONFIG.grade.girlBright;
     this.final.u.girlSat.value = CONFIG.grade.girlSat;
+    // にじみの前の光を控えておく（あとで差を取り、にじみだけを足す）
+    this.copy.render(r, this.glowRaw);
     this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.glowRT, 0, false);
-    const d = this.dof.u;
-    d.near.value = cam.near; d.far.value = cam.far; d.focus.value = focus;
-    d.src.value = this.hdr.texture; (d.dir.value as THREE.Vector2).set(1, 0);
-    this.dof.render(r, this.dofA);
-    d.src.value = this.dofA.texture; (d.dir.value as THREE.Vector2).set(0, 1);
-    this.dof.render(r, this.dofB);
+    // 画面全体のピントぼかしはやめた（深度を書かない墨まで最大限ぼけていた）。手前の層は最初からやわらかく描く
+    void focus;
     const u = this.final.u;
     u.time.value = time; u.flash.value = flash; u.sat.value = sat; u.contrast.value = contrast;
     this.final.render(r, null);

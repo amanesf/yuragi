@@ -63,7 +63,7 @@ export const CONFIG = {
     /** 少女の背の後光。 */
     backlight: 1,
     /** 少女を手前の墨や煙で濁らせない度合い（1 で原画そのまま）。 */
-    clarity: 0.8,
+    clarity: 0,
     /** 少女の明るさと彩度。 */
     girlBright: 1.15,
     girlSat: 1.2,
