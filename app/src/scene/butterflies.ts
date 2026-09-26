@@ -53,7 +53,7 @@ void main() {
   float spots = band * step(0.5, fract(a * 4.0 + 0.25));
   vec3 irid = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + hue + p.x * 0.7 + p.y * 0.35 + time * 0.07));
   vec3 glass = mix(vec3(0.4, 0.95, 0.9), irid, 0.55);
-  vec3 col = glass * inside * 0.16 + glass * veins * 0.8 + vec3(1.0, 0.86, 0.55) * edge * 1.1 + vec3(1.0, 0.85, 0.5) * spots * 0.5;
+  vec3 col = glass * inside * 0.32 + glass * veins * 0.8 + vec3(1.0, 0.86, 0.55) * edge * 1.1 + vec3(1.0, 0.85, 0.5) * spots * 0.5;
   col *= alpha * (1.0 + flash);
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -75,7 +75,11 @@ export class Butterflies {
   }
 
   private goal() {
-    return new THREE.Vector3((Math.random() - 0.5) * 2.2, -0.9 + Math.random() * 1.9, -0.6 + Math.random() * 1.5);
+    // 画面の中に収まる範囲（顔の真ん前は少し避ける）
+    for (;;) {
+      const v = new THREE.Vector3((Math.random() - 0.5) * 0.95, -0.85 + Math.random() * 1.75, -0.2 + Math.random() * 0.7);
+      if (Math.abs(v.x) > 0.18 || v.y < 0.4) return v;
+    }
   }
 
   spawn(at?: THREE.Vector3, ambient = false) {
@@ -91,13 +95,13 @@ export class Butterflies {
     const [s0, s1] = CONFIG.butterflies.size;
     const size = s0 + Math.random() * (s1 - s0);
     root.scale.setScalar(size);
+    // 翅は画面に向けて広げる（真横を向いて消えないように）。体の軸は進む向き
     const inner = new THREE.Group();
-    inner.rotation.x = Math.PI / 2 - 0.35; // 翅の前縁を進行方向へ、体はやや起こす
     inner.add(L, R);
     root.add(inner);
     root.renderOrder = 35;
     const side = Math.random() < 0.5 ? -1 : 1;
-    const pos = at ? at.clone() : new THREE.Vector3(side * 1.8, -0.6 + Math.random() * 1.4, -0.2 + Math.random() * 0.8);
+    const pos = at ? at.clone() : new THREE.Vector3(side * 0.75, -0.6 + Math.random() * 1.3, 0.1 + Math.random() * 0.4);
     this.flies.push({
       root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), goal: this.goal(),
       phase: Math.random() * 10, freq: 2.8 + Math.random() * 1.2, age: 0,
@@ -128,9 +132,9 @@ export class Butterflies {
       f.pos.y += (gliding ? -0.03 : Math.max(0, flap) * 0.05) * dt;
 
       f.root.position.copy(f.pos);
-      const look = f.pos.clone().add(f.vel.lengthSq() > 1e-6 ? f.vel : new THREE.Vector3(0, 0, 1));
-      f.root.lookAt(look);
-      const open = 0.1 + 1.35 * (0.5 + 0.5 * flap);
+      // 体の軸を画面上の進行方向へ。わずかに傾けて立体感を出す
+      f.root.rotation.set(Math.sin(w.time * 0.9 + f.seed) * 0.35, Math.sin(w.time * 0.6 + f.seed * 2) * 0.3, Math.atan2(f.vel.y, f.vel.x) - Math.PI / 2);
+      const open = 0.05 + 1.15 * (0.5 + 0.5 * flap);
       f.L.rotation.y = -open; f.R.rotation.y = open;
 
       const fadeIn = Math.min(1, f.age / 1.5), fadeOut = Math.min(1, (f.life - f.age) / 2);

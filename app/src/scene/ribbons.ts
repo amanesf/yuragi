@@ -120,7 +120,7 @@ export class Ribbons {
       const u = m.uniforms;
       const extra = i >= 4 ? surge : 1;
       u.time.value = w.time; u.reveal.value = w.reveal; u.intensity.value = lvl * extra;
-      u.widthScale.value = 0.45 + 0.55 * surge;
+      u.widthScale.value = 0.75 + 0.45 * surge;
       (u.wind.value as THREE.Vector2).set(w.wind.x, w.wind.z);
       (u.touch.value as THREE.Vector4).set(w.touch.x, w.touch.y, w.touch.z, w.touch.s);
     });

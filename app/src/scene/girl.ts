@@ -33,13 +33,18 @@ void main() {
 
   float side = sign(px.x - 384.0);
   // 髪：肩（y≈400）より下で、毛先ほど大きく
-  float hairW = w.r * pow(smoothstep(300.0, 1000.0, px.y), 1.3) * free * hairAmp;
-  float ph = time * 0.95 - px.y * 0.0045 + side * 0.7;
+  // 髪は「しなる」：肩のあたりを支点に曲がり、毛先ほど遅れてついてくる（鞭のように）
+  float s = clamp((px.y - 290.0) / 720.0, 0.0, 1.0);
+  float hairW = w.r * smoothstep(0.0, 0.12, s) * free * hairAmp;
+  float lag = s * 1.9;
+  float bend = sin(time * 0.85 - lag + side * 0.6) * 0.055
+             + sin(time * 0.47 - lag * 0.7 + 1.3) * 0.045
+             + wind.x * 0.16 * (0.6 + 0.4 * s);
+  float arm = (px.y - 290.0) * pow(s, 0.6);
   vec3 d = vec3(0.0);
-  // 根元から毛先へ遅れて伝わる、ゆっくりした波（高い周波数は入れない＝滑らかに）
-  d.x += hairW * (sin(ph) * 18.0 + sin(time * 0.53 - px.y * 0.0035 + 1.3) * 16.0 + wind.x * 80.0);
-  d.z += hairW * (sin(ph * 0.8 + px.x * 0.01) * 24.0 + wind.y * 60.0);
-  d.y += hairW * abs(wind.x) * 14.0;
+  d.x += hairW * bend * arm;
+  d.y += -hairW * abs(bend) * arm * 0.18;
+  d.z += hairW * (sin(time * 0.7 - lag + px.x * 0.01) * 0.05 + wind.y * 0.12) * arm;
 
   // 袖：肘より下、体の外側ほど
   float slvW = w.b * smoothstep(540.0, 900.0, px.y) * smoothstep(110.0, 260.0, abs(px.x - 384.0)) * free;
@@ -59,7 +64,7 @@ void main() {
   float fvl = length(fv); if (fvl > 60.0) fv *= 60.0 / fvl;
   d.xy += fv * slvW * 0.06;
   d *= sway;
-  vFlex = clamp((hairW + slvW + skW) * (0.4 + length(wind)), 0.0, 1.0);
+  vFlex = clamp((hairW * 0.3 + slvW + skW) * (0.4 + length(wind)), 0.0, 1.0);
   vec3 p = position + d * S;
   vWorld = p.xy;
   // わずかな丸み（板に見せない）。頭も含めて一様なので歪みにはならない。
@@ -69,7 +74,7 @@ void main() {
 
 const FRAG = /* glsl */ `
 uniform sampler2D map, aura, fvel, fdye;
-uniform float time, reveal, rim, dissolve, speed;
+uniform float time, reveal, rim, dissolve, speed, warp, aura2;
 uniform vec4 frect;
 varying vec2 vUv;
 varying vec2 vWorld;
@@ -81,18 +86,23 @@ void main() {
   float head0 = 1.0 - smoothstep(0.9, 1.3, length((px0 - vec2(388.0, 215.0)) / vec2(150.0, 175.0)));
   vec3 au0 = texture2D(aura, (vUv - 0.5) / 1.3 + 0.5).rgb;
   float melt = clamp(au0.b * 2.0, 0.0, 1.0) * (1.0 - smoothstep(0.35, 0.85, au0.r)) * dissolve * (1.0 - head0);
+  // 体全体がゆるく流れに引かれる（初版のとろけ）。袖・裾・毛先ほど強く
+  float body = (0.08 + 0.92 * clamp(au0.b * 2.0, 0.0, 1.0)) * dissolve * (1.0 - head0) * warp;
   vec2 fuv = (vWorld - frect.xy) / frect.zw + 0.5;
   vec2 fv = texture2D(fvel, fuv).xy * frect.zw / vec2(${GIRL_W.toFixed(4)}, ${GIRL_H.toFixed(4)});
+  vec2 fw = fv; float fwl = length(fw); if (fwl > 0.05) fw *= 0.05 / fwl;
   float fl = length(fv); if (fl > 0.05) fv *= 0.05 / fl;
-  vec2 drip = vec2(0.0, -0.012) * melt * (0.5 + fbm(vUv * vec2(40.0, 8.0) + time * 0.05));
-  vec2 muv = vUv - (fv * 0.5 + drip) * melt;
+  // 縁は下へ垂れる（墨が滴るように）
+  float dripN = fbm(vec2(vUv.x * 60.0, time * 0.12));
+  vec2 drip = vec2(0.0, -0.035) * smoothstep(0.35, 0.8, dripN) * melt * (0.5 + fbm(vUv * vec2(40.0, 8.0) + time * 0.05));
+  vec2 muv = vUv - fw * 0.45 * body - (fv * 0.5 + drip) * melt;
   vec4 c = texture2D(map, muv);
   // 流れの方向へ尾を引く（最大値で残す＝布が墨の筋になる）
   // 流れの下流へ尾を引く。尾は布の色から墨の色へ変わっていく（布が墨になる）
   float tail = 0.0;
-  for (int i = 1; i <= 5; i++) {
-    vec4 s = texture2D(map, muv + (fv * 0.3 + drip * 1.5) * melt * float(i));
-    tail = max(tail, s.a * (1.0 - float(i) * 0.17));
+  for (int i = 1; i <= 7; i++) {
+    vec4 s = texture2D(map, muv + (fv * 0.3 + drip * 1.2) * melt * float(i));
+    tail = max(tail, s.a * (1.0 - float(i) * 0.12));
   }
   tail *= melt * (0.55 + 0.45 * fbm(vUv * vec2(30.0, 12.0) - time * 0.1));
   float inkTail = max(tail - c.a, 0.0);
@@ -138,6 +148,11 @@ void main() {
   float sweep = 0.5 + 0.5 * sin(time * 0.6 + vUv.y * 5.0);
   col += vec3(0.25, 0.95, 0.8) * (edge * (1.0 - dw) + bleedRim * 0.8) * rim * (0.35 + 0.65 * sweep);
   col += vec3(0.3, 0.9, 0.8) * vFlex * 0.05 * sweep;
+  // 初版の「呼吸する翡翠の光」：髪の縁と袖にほのかに灯り、帯のように流れる（瞳は除く）
+  float band = smoothstep(0.55, 0.95, fbm(vUv * vec2(3.0, 1.6) + vec2(0.0, time * 0.06)));
+  float breath = 0.5 + 0.5 * sin(time * 6.2831 / 9.0);
+  float face = 1.0 - smoothstep(0.6, 1.0, length((px0 - vec2(388.0, 240.0)) / vec2(95.0, 110.0)));
+  col += vec3(0.25, 1.0, 0.78) * (edge * 0.8 + 0.12 * (1.0 - au0.r * 0.5)) * (0.3 + 0.7 * band) * (0.4 + 0.6 * breath) * aura2 * (1.0 - face);
   col += vec3(0.35, 1.0, 0.85) * edgeGlow * 0.45;
   gl_FragColor = vec4(col, a);
 }`;
@@ -154,7 +169,7 @@ export class Girl {
         map: { value: map }, regions: { value: regions },
         time: { value: 0 }, wind: { value: new THREE.Vector2() },
         reveal: { value: 0 }, rim: { value: 1 }, aura: { value: aura },
-        dissolve: { value: CONFIG.ink.dissolve },
+        dissolve: { value: CONFIG.ink.dissolve }, warp: { value: 1 }, aura2: { value: 0 },
         fvel: { value: null }, fdye: { value: null }, frect: { value: new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h) }, speed: { value: CONFIG.ink.speed }, sway: { value: CONFIG.wind.sway }, hairAmp: { value: CONFIG.wind.hair },
       },
       transparent: true, depthWrite: true, side: THREE.DoubleSide,
@@ -163,10 +178,12 @@ export class Girl {
     this.mesh.renderOrder = 10;
   }
 
-  update(time: number, wind: { x: number; z: number }, reveal: number, rim: number, fvel: THREE.Texture, fdye: THREE.Texture) {
+  update(time: number, wind: { x: number; z: number }, reveal: number, rim: number, fvel: THREE.Texture, fdye: THREE.Texture, aura2: number) {
     const u = this.material.uniforms;
     u.fvel.value = fvel; u.fdye.value = fdye;
     u.dissolve.value = CONFIG.ink.dissolve;
+    u.warp.value = CONFIG.ink.warp;
+    u.aura2.value = aura2;
     u.time.value = time;
     (u.wind.value as THREE.Vector2).set(wind.x, wind.z);
     u.reveal.value = reveal;

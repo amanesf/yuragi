@@ -10,6 +10,7 @@ import { Backdrop } from './scene/ink';
 import { DYE_TEXEL, InkFluid, RECT } from './scene/inkfluid';
 import { InkLayers } from './scene/inklayers';
 import { Ribbons } from './scene/ribbons';
+import { FrontSmoke } from './scene/frontsmoke';
 
 const q = new URLSearchParams(location.search);
 const DPR = Math.min(Number(q.get('dpr')) || window.devicePixelRatio || 1, 2);
@@ -39,10 +40,11 @@ const fluid = new InkFluid(auraTex, girlRect);
 const backdrop = new Backdrop();
 const inkLayers = new InkLayers(() => fluid.dye.read.texture, DYE_TEXEL);
 const girl = new Girl(girlTex, regionTex, auraTex);
+const frontSmoke = new FrontSmoke(() => fluid.dye.read.texture, new THREE.Vector4(RECT.cx, RECT.cy, RECT.w, RECT.h));
 const ribbons = new Ribbons();
 const glitter = new Glitter();
 const flies = new Butterflies();
-scene.add(backdrop.mesh, inkLayers.group, girl.mesh, ribbons.group, glitter.points, flies.group);
+scene.add(backdrop.mesh, inkLayers.group, frontSmoke.group, girl.mesh, ribbons.group, glitter.points, flies.group);
 
 let W = 1, H = 1;
 const post = new Post(1, 1);
@@ -261,9 +263,10 @@ function frame(now: number) {
   fluid.step(renderer, Math.min(Math.max(real, 1 / 120), 1 / 30), t, world.wind);
 
   backdrop.update(t);
-  inkLayers.update(t, 1 + climax * 0.8 + flash);
+  inkLayers.update(t, 1 + climax * 1.5 + flash * 2);
   girl.update(t, world.wind, ease((t - 2.8) / 4.5), CONFIG.light.rim * (0.4 + 0.6 * climax + 0.25 * Math.sin(t * 0.4)),
-    fluid.vel.read.texture, fluid.dye.read.texture);
+    fluid.vel.read.texture, fluid.dye.read.texture, CONFIG.light.aura * (1 + climax * 0.8) * world.reveal);
+  frontSmoke.update(t, world.wind, world.reveal, climax);
   ribbons.update(world, Math.min(1, climax + flash * 0.5));
   glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + climax * 1.2));
   flies.update(world, real, flash);
@@ -273,10 +276,10 @@ function frame(now: number) {
   hint.classList.toggle('on', t > 12 && t - lastInput > 14 && Math.floor(t / 20) % 3 === 0);
 
   renderer.setRenderTarget(post.hdr);
-  renderer.setClearColor(0x2a2e30);
+  renderer.setClearColor(0x0c0e10);
   renderer.clear();
   renderer.render(scene, camera);
-  post.strength = 0.6 + climax * 0.45 + flash * 0.4;
+  post.strength = 0.75 + climax * 0.5 + flash * 0.4;
   post.render(renderer, t, flash, 1, CONFIG.grade.saturation);
   requestAnimationFrame(frame);
 }
