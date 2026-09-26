@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&display=swap');
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #020304; color: #d9efe8;
+  touch-action: none; -webkit-user-select: none; user-select: none;
+  overscroll-behavior: none;
+}
+#stage, #stage canvas { position: fixed; inset: 0; display: block; }
+
+#title {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  top: calc(40px + env(safe-area-inset-top));
+  writing-mode: vertical-rl;
+  font-family: 'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  pointer-events: none;
+  opacity: 0; filter: blur(8px);
+  transition: opacity 2.6s ease, filter 2.6s ease, transform 3s ease;
+  text-shadow: 0 0 18px rgba(80, 255, 200, .45), 0 0 2px rgba(0,0,0,.8);
+}
+#title h1 { margin: 0; font-weight: 600; font-size: 44px; letter-spacing: .5em; line-height: 1; }
+#title p { margin: 0 14px 0 0; font-size: 11px; letter-spacing: .6em; opacity: .75; }
+#title.on { opacity: 1; filter: blur(0); }
+#title.rest { opacity: .28; filter: blur(0); transform: scale(.62); transform-origin: top right; }
+
+#hint {
+  position: fixed; left: 0; right: 0;
+  bottom: calc(34px + env(safe-area-inset-bottom));
+  text-align: center; pointer-events: none;
+  font-family: 'Shippori Mincho', serif; font-size: 12px; letter-spacing: .8em;
+  opacity: 0; transition: opacity 3s ease;
+  text-shadow: 0 0 12px rgba(80, 255, 200, .6);
+}
+#hint.on { opacity: .55; }
+
+#loader { position: fixed; inset: 0; background: #020304; transition: opacity 1.2s ease; pointer-events: none; }
+body.ready #loader { opacity: 0; }
