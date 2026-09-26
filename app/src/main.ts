@@ -1,34 +1,43 @@
 import * as THREE from 'three';
 import './style.css';
-import { IMAGE_H, IMAGE_W } from './core/gl';
 import { Post } from './core/post';
 import { Butterflies } from './scene/butterflies';
-import { Dust } from './scene/dust';
-import { Fluid } from './scene/fluid';
-import { Painting } from './scene/painting';
+import { GIRL_H, GIRL_W, type World } from './scene/common';
+import { Girl } from './scene/girl';
+import { Glitter } from './scene/glitter';
+import { Ink } from './scene/ink';
+import { Ribbons } from './scene/ribbons';
 
 const q = new URLSearchParams(location.search);
 const DPR = Math.min(Number(q.get('dpr')) || window.devicePixelRatio || 1, 2);
 const STEP = 1 / 60;
-const A = IMAGE_W / IMAGE_H;
 
 const stage = document.getElementById('stage')!;
-const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(1);
-renderer.autoClear = false;
 stage.appendChild(renderer.domElement);
 
-const image = await new THREE.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}assets/source.jpg`);
-image.colorSpace = THREE.NoColorSpace;
-image.minFilter = THREE.LinearFilter;
-image.generateMipmaps = false;
+const loader = new THREE.TextureLoader();
+const base = import.meta.env.BASE_URL;
+const [girlTex, regionTex] = await Promise.all([
+  loader.loadAsync(`${base}assets/girl.webp`),
+  loader.loadAsync(`${base}assets/regions.png`),
+]);
+for (const t of [girlTex, regionTex]) { t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; }
+girlTex.anisotropy = 4;
 
-const fluid = new Fluid();
-const painting = new Painting(image);
-const dust = new Dust(renderer);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
+const world: World = { time: 0, wind: { x: 0, z: 0 }, touch: { x: 0, y: 0, z: 0.3, s: 0 }, reveal: 0 };
+
+const ink = new Ink();
+const girl = new Girl(girlTex, regionTex);
+const ribbons = new Ribbons();
+const glitter = new Glitter();
 const flies = new Butterflies();
-const camera = new THREE.Camera();
+scene.add(ink.group, girl.mesh, ribbons.group, glitter.points, flies.group);
+ink.settle();
 
 let W = 1, H = 1;
 const post = new Post(1, 1);
@@ -38,147 +47,125 @@ function resize() {
   renderer.setSize(W, H, false);
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
   post.resize(W, H);
 }
 resize();
 window.addEventListener('resize', resize);
 
-// ---- 画面 uv → 画像 uv（cover。縦長では高さを合わせ、ゆっくり呼吸する） ----
-const xform = painting.pass.u.xform.value as THREE.Vector4;
-const FOCUS = { x: 0.5, y: 0.8 };
+// ---- カメラ：ゆっくり漂い、指の方へわずかに回り込む ----
 const pan = { x: 0, y: 0, tx: 0, ty: 0 };
-function updateTransform(t: number) {
-  const s = W / H;
-  let sx = s / A, sy = 1;
-  if (s > A * 1.0001 && s / A > 1.35) { sx = s / A; sy = 1; } // 横長：高さ合わせで左右は闇
-  else if (s > A) { sx = 1; sy = A / s; }
-  const z = 1.035 + 0.02 * Math.sin((t / 23) * Math.PI * 2) + 0.012 * Math.sin((t / 61) * Math.PI * 2);
-  sx /= z; sy /= z;
-  pan.x += (pan.tx - pan.x) * 0.02;
-  pan.y += (pan.ty - pan.y) * 0.02;
-  let cx = 0.5 + (FOCUS.x - 0.5) * (1 - 1 / z) + pan.x * 0.012 + Math.sin(t / 37) * 0.004;
-  let cy = 0.5 + (FOCUS.y - 0.5) * (1 - 1 / z) + pan.y * 0.008 + Math.sin(t / 29) * 0.003;
-  if (sx <= 1) cx = Math.min(1 - sx / 2, Math.max(sx / 2, cx));
-  cy = Math.min(1 - sy / 2, Math.max(sy / 2, cy));
-  xform.set(sx, sy, cx - sx / 2, cy - sy / 2);
+function updateCamera(t: number) {
+  const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  // 縦長では少女の高さに、横長でも少女の幅が収まるように距離を決める
+  const needH = Math.max(GIRL_H * 1.02, (GIRL_W * 0.98) / camera.aspect);
+  const intro = 1 - world.reveal;
+  const dist = needH / (2 * tan) * (1 + intro * 0.25) * (1 - 0.015 * Math.sin((t / 27) * Math.PI * 2));
+  pan.x += (pan.tx - pan.x) * 0.03; pan.y += (pan.ty - pan.y) * 0.03;
+  const az = Math.sin((t / 31) * Math.PI * 2) * 0.12 + pan.x * 0.1;
+  const el = Math.sin((t / 23) * Math.PI * 2) * 0.03 + pan.y * 0.05;
+  const target = new THREE.Vector3(0, 0.02 + intro * 0.35, 0);
+  camera.position.set(Math.sin(az) * dist, target.y + Math.sin(el) * dist, Math.cos(az) * dist);
+  camera.lookAt(target);
 }
-const toImage = (x: number, y: number): [number, number] => [x * xform.x + xform.z, y * xform.y + xform.w];
 
-// ---- 入力：なぞれば墨が退き、叩けば光が寄る、押さえ続ければ渦 ----
-const touch = painting.pass.u.touch.value as THREE.Vector3;
-let touchGlow = 0, flash = 0, lastInput = -99;
-interface P { x: number; y: number; t: number; down: number; startX: number; startY: number; moved: number; last: number }
+// ---- 入力 ----
+const ray = new THREE.Raycaster();
+const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -0.3);
+function toWorld(cx: number, cy: number) {
+  ray.setFromCamera(new THREE.Vector2((cx / window.innerWidth) * 2 - 1, 1 - (cy / window.innerHeight) * 2), camera);
+  const p = new THREE.Vector3();
+  ray.ray.intersectPlane(plane, p);
+  return p;
+}
+let touchS = 0, flash = 0, burst = 0, lastInput = -99;
+let windImpulse = 0, windImpulseZ = 0;
+interface P { x: number; y: number; t: number; down: number; moved: number }
 const pointers = new Map<number, P>();
-const screenUv = (e: PointerEvent) => [e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight] as const;
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  const [x, y] = screenUv(e);
-  pointers.set(e.pointerId, { x, y, t: performance.now(), down: clock, startX: x, startY: y, moved: 0, last: 0 });
-  lastInput = clock;
-  const [ix, iy] = toImage(x, y);
-  touch.set(ix, iy, touch.z);
-  touchGlow = Math.max(touchGlow, 0.6);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), down: world.time, moved: 0 });
+  const p = toWorld(e.clientX, e.clientY);
+  Object.assign(world.touch, { x: p.x, y: p.y, z: p.z });
+  touchS = Math.max(touchS, 0.6);
+  lastInput = world.time;
 });
 window.addEventListener('pointermove', (e) => {
-  const [x, y] = screenUv(e);
-  pan.tx = (x - 0.5) * 2; pan.ty = (y - 0.5) * 2;
+  pan.tx = (e.clientX / window.innerWidth - 0.5) * 2;
+  pan.ty = -(e.clientY / window.innerHeight - 0.5) * 2;
   const p = pointers.get(e.pointerId);
+  if (!p) return;
   const now = performance.now();
-  if (!p && e.pointerType !== 'mouse') return;
-  const prev = p ?? { x, y, t: now - 16 };
-  const dtp = Math.max(0.008, (now - prev.t) / 1000);
-  const [ix, iy] = toImage(x, y);
-  const [px, py] = toImage(prev.x, prev.y);
-  let vx = (ix - px) / dtp, vy = (iy - py) / dtp;
-  const sp = Math.hypot(vx, vy);
-  if (sp > 2.5) { vx *= 2.5 / sp; vy *= 2.5 / sp; }
-  if (p) {
-    p.moved += Math.hypot(x - p.x, y - p.y);
-    p.x = x; p.y = y; p.t = now;
-    if (now - p.last > 30) {
-      p.last = now;
-      fluid.push({ x: ix, y: iy, dx: vx * 0.16, dy: vy * 0.16, radius: 0.05, swirl: 0, life: 0.3 });
-    }
-    touch.set(ix, iy, touch.z);
-    touchGlow = Math.max(touchGlow, 0.8);
-    lastInput = clock;
-  } else if (sp > 0.05 && Math.random() < 0.35) {
-    // マウスは押さなくても、そよぐ程度に
-    fluid.push({ x: ix, y: iy, dx: vx * 0.04, dy: vy * 0.04, radius: 0.04, swirl: 0, life: 0.25 });
-  }
+  const dt = Math.max(0.008, (now - p.t) / 1000);
+  const vx = (e.clientX - p.x) / window.innerWidth / dt;
+  const vy = (e.clientY - p.y) / window.innerHeight / dt;
+  p.moved += Math.hypot(e.clientX - p.x, e.clientY - p.y) / window.innerWidth;
+  p.x = e.clientX; p.y = e.clientY; p.t = now;
+  // なぞった向きに風が吹く
+  windImpulse += THREE.MathUtils.clamp(vx, -4, 4) * 0.05;
+  windImpulseZ += THREE.MathUtils.clamp(vy, -4, 4) * 0.02;
+  const w = toWorld(e.clientX, e.clientY);
+  Object.assign(world.touch, { x: w.x, y: w.y, z: w.z });
+  touchS = Math.max(touchS, 0.9);
+  lastInput = world.time;
 });
 const release = (e: PointerEvent) => {
   const p = pointers.get(e.pointerId);
   pointers.delete(e.pointerId);
-  if (!p) return;
-  const held = clock - p.down;
-  const [ix, iy] = toImage(p.x, p.y);
-  if (p.moved < 0.02) {
-    // 叩いた：輪に広がる衝撃と光、蝶がほどける
-    const n = 6;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * Math.PI * 2;
-      fluid.push({ x: ix + Math.cos(a) * 0.02 * A, y: iy + Math.sin(a) * 0.02, dx: Math.cos(a) * 0.1, dy: Math.sin(a) * 0.1, radius: 0.035, swirl: 0, life: 0.35 });
-    }
-    fluid.push({ x: ix, y: iy, dx: 0, dy: 0.02, radius: 0.08, swirl: held > 0.5 ? 0.25 : 0.1, life: 0.8 });
-    flash = Math.min(1, flash + 0.5);
-    touchGlow = 1.3;
-    if (Math.random() < 0.7) flies.spawn(p.x, p.y);
-  }
+  if (!p || p.moved > 0.03) return;
+  // 叩いた：粒が弾け、光が寄り、蝶が生まれる
+  burst = 1; flash = Math.min(1, flash + 0.6); touchS = 1.4;
+  windImpulse += (Math.random() - 0.5) * 0.6;
+  const w = toWorld(p.x, p.y);
+  flies.spawn(w);
+  if (Math.random() < 0.4) flies.spawn(w.clone().add(new THREE.Vector3(0.1, 0.05, 0)));
 };
 window.addEventListener('pointerup', release);
 window.addEventListener('pointercancel', release);
 
-// ---- 生理リズム：入力が無くても作品は死なない ----
-let clock = 0;
-let nextGust = 14 + Math.random() * 10, gustT = -1, gustDur = 7;
-let nextFly = 6 + Math.random() * 6;
-let nextSwarm = 150 + Math.random() * 90;
-let nextEyes = 30 + Math.random() * 20, eyeSurge = 0;
-
+// ---- 生理リズム ----
+let gustT = -1, gustDur = 6, gustDir = 1, nextGust = 12 + Math.random() * 8;
+let nextFly = 5, nextSwarm = 120 + Math.random() * 60;
+const wind = { x: 0, z: 0, vx: 0, vz: 0 };
 function rhythm(dt: number) {
-  // 突風：立ち上がり1.5秒、保って、3秒かけて凪ぐ
-  if (clock > nextGust && gustT < 0) {
-    gustT = 0; gustDur = 5 + Math.random() * 5;
-    const a = (Math.random() < 0.5 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9;
-    fluid.gustDir.set(Math.cos(a), Math.sin(a) * 0.6 + 0.2).normalize();
-    nextGust = clock + 22 + Math.random() * 28;
-  }
+  const t = world.time;
+  // 常にそよぐ風（ゆっくり、複数の周期）
+  let tx = Math.sin(t * 0.21) * 0.18 + Math.sin(t * 0.083 + 1.3) * 0.22 + Math.sin(t * 0.47 + 2.1) * 0.06;
+  let tz = Math.sin(t * 0.17 + 0.5) * 0.15;
+  if (t > nextGust && gustT < 0) { gustT = 0; gustDur = 4 + Math.random() * 5; gustDir = Math.random() < 0.5 ? -1 : 1; nextGust = t + 18 + Math.random() * 22; }
   if (gustT >= 0) {
     gustT += dt;
-    const k = Math.min(1, gustT / 1.5) * Math.min(1, Math.max(0, (gustDur - gustT) / 3));
-    fluid.gust = k * 0.025;
-    if (gustT > gustDur) { gustT = -1; fluid.gust = 0; }
+    const k = Math.min(1, gustT / 1.2) * Math.min(1, Math.max(0, (gustDur - gustT) / 2.5));
+    tx += gustDir * k * (0.75 + 0.25 * Math.sin(t * 3.1));
+    tz += k * 0.3 * Math.sin(t * 1.7);
+    if (gustT > gustDur) gustT = -1;
   }
-  if (clock > nextFly) { flies.spawn(); nextFly = clock + 9 + Math.random() * 14; }
-  if (clock > nextSwarm) {
-    for (let i = 0; i < 5; i++) setTimeout(() => flies.spawn(), i * 350);
-    nextSwarm = clock + 150 + Math.random() * 120;
-  }
-  if (clock > nextEyes) { eyeSurge = 1; nextEyes = clock + 35 + Math.random() * 30; }
-  eyeSurge *= Math.exp(-dt / 3);
+  tx += windImpulse; tz += windImpulseZ;
+  windImpulse *= Math.exp(-dt / 0.6); windImpulseZ *= Math.exp(-dt / 0.6);
+  // 布と髪には質量がある：ばねで追う（少し行き過ぎて戻る）
+  wind.vx += ((tx - wind.x) * 9 - wind.vx * 3.2) * dt;
+  wind.vz += ((tz - wind.z) * 9 - wind.vz * 3.2) * dt;
+  wind.x += wind.vx * dt; wind.z += wind.vz * dt;
+  world.wind.x = THREE.MathUtils.clamp(wind.x, -1.3, 1.3);
+  world.wind.z = THREE.MathUtils.clamp(wind.z, -1, 1);
 
-  // 長押しは渦を育てる
+  if (t > nextFly && flies.count < 7) { flies.spawn(undefined, flies.count < 4); nextFly = t + 6 + Math.random() * 10; }
+  if (t > nextSwarm) { for (let i = 0; i < 5; i++) flies.spawn(); nextSwarm = t + 120 + Math.random() * 90; }
+
   for (const p of pointers.values()) {
-    const held = clock - p.down;
-    if (held > 0.45 && p.moved < 0.03) {
-      const [ix, iy] = toImage(p.x, p.y);
-      if (Math.random() < dt * 12) fluid.push({ x: ix, y: iy, dx: 0, dy: 0, radius: 0.06 + Math.min(held, 4) * 0.015, swirl: 0.12, life: 0.2 });
-      touchGlow = Math.max(touchGlow, 0.7 + Math.min(held, 3) * 0.2);
-    }
+    if (world.time - p.down > 0.4 && p.moved < 0.03) touchS = Math.max(touchS, 1 + Math.min(2, world.time - p.down) * 0.4);
   }
-  touchGlow *= Math.exp(-dt / 0.9);
-  flash *= Math.exp(-dt / 0.35);
+  touchS *= Math.exp(-dt / 1.1);
+  world.touch.s = touchS;
+  flash *= Math.exp(-dt / 0.4);
+  burst *= Math.exp(-dt / 0.5);
 }
 
 // ---- 開幕 ----
-const INTRO = { eyesAt: 0.7, revealAt: 1.9, revealDur: 5.5 };
-const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+const ease = (x: number) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
 const title = document.getElementById('title')!;
 const hint = document.getElementById('hint')!;
-
-// 最初の数秒ぶんの媒質を、見せる前に回しておく
-for (let i = 0; i < 90; i++) fluid.step(renderer, STEP, i * STEP);
 document.body.classList.add('ready');
 
 let acc = 0, prev = performance.now();
@@ -186,45 +173,31 @@ function frame(now: number) {
   const real = Math.min(0.1, (now - prev) / 1000);
   prev = now;
   acc += real;
-  let steps = 0;
-  while (acc >= STEP && steps < 4) {
-    rhythm(STEP);
-    fluid.step(renderer, STEP, clock);
-    dust.step(renderer, fluid.vel.read.texture, STEP, clock);
-    clock += STEP; acc -= STEP; steps++;
-  }
-  if (steps === 4) acc = 0;
-  updateTransform(clock);
-  flies.update(real, clock, W / H, toImage, fluid);
+  let n = 0;
+  while (acc >= STEP && n < 4) { rhythm(STEP); world.time += STEP; acc -= STEP; n++; }
+  if (n === 4) acc = 0;
+  const t = world.time;
+  world.reveal = ease((t - 0.8) / 6.5);
+  const curtain = ease((t - 0.3) / 3.2);
 
-  const reveal = -0.3 + ease((clock - INTRO.revealAt) / INTRO.revealDur) * 2.9;
-  const eyes = ease((clock - INTRO.eyesAt) / 1.2) * (0.55 + 0.25 * Math.sin(clock * 0.7) + eyeSurge * 0.9);
-  title.classList.toggle('on', clock > 3.2 && clock < 11);
-  title.classList.toggle('rest', clock >= 11);
-  hint.classList.toggle('on', clock > 9 && clock - lastInput > 14 && Math.floor(clock / 20) % 3 === 0);
+  updateCamera(t);
+  ink.update(world, real, camera);
+  girl.update(t, world.wind, ease((t - 1.6) / 4.5), 0.6 + 0.4 * Math.sin(t * 0.4));
+  ribbons.update(world, 1 + flash * 0.8);
+  glitter.update(world, H * 1.0, burst);
+  flies.update(world, real, flash);
 
-  const u = painting.pass.u;
-  u.disp.value = fluid.disp.read.texture;
-  u.vel.value = fluid.vel.read.texture;
-  u.time.value = clock;
-  u.reveal.value = reveal;
-  u.eyes.value = eyes;
-  u.glow.value = 1 + eyeSurge * 0.4 + fluid.gust * 14;
-  touch.z = touchGlow;
-  painting.pass.render(renderer, post.hdr);
+  title.classList.toggle('on', t > 4.5 && t < 12);
+  title.classList.toggle('rest', t >= 12);
+  hint.classList.toggle('on', t > 10 && t - lastInput > 14 && Math.floor(t / 20) % 3 === 0);
 
-  const d = dust.material.uniforms;
-  d.state.value = dust.state; d.disp.value = fluid.disp.read.texture; d.xform.value = xform;
-  d.px.value = DPR * Math.max(1, Math.min(W, H) / DPR / 390); d.time.value = clock; d.reveal.value = reveal;
   renderer.setRenderTarget(post.hdr);
-  renderer.render(dust.scene, camera);
-  renderer.render(flies.scene, camera);
-
-  post.strength = 0.6 + flash * 0.5 + eyeSurge * 0.15;
-  post.render(renderer, clock, flash);
+  renderer.clear();
+  renderer.render(scene, camera);
+  post.strength = 0.75 + flash * 0.5;
+  post.render(renderer, t, flash, curtain);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-// 撮影スクリプト用：時間を早送りする
-(window as unknown as { yuragi: unknown }).yuragi = { get clock() { return clock; }, flies };
+(window as unknown as { yuragi: unknown }).yuragi = { get clock() { return world.time; }, world };

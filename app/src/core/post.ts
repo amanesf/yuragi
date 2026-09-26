@@ -11,7 +11,10 @@ const FINAL = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D src;
 uniform vec2 res;
-uniform float time, flash;
+uniform float time, flash, curtain;
+float h(vec2 p);
+float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
 float h(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main() {
   vec2 c = vUv - 0.5;
@@ -31,6 +34,16 @@ void main() {
   col += (h(g + fract(time * 7.13) * 431.0) - 0.5) * 0.045;
   float fiber = h(floor(vUv * res / vec2(6.0, 1.5)));
   col *= 0.985 + 0.03 * fiber;
+  // 開幕の墨の幕：中央から外へ退く
+  if (curtain < 1.0) {
+    vec2 sp = c * vec2(res.x / res.y, 1.0);
+    float n = vn(vUv * 5.0) * 0.5 + vn(vUv * 11.0) * 0.3 + vn(vUv * 23.0) * 0.2;
+    float f = length(sp) * 1.6 + (n - 0.5) * 0.7;
+    float cov = smoothstep(curtain * 1.6 - 0.08, curtain * 1.6 + 0.02, f);
+    float rim = exp(-pow((f - curtain * 1.6) / 0.03, 2.0)) * step(0.01, curtain);
+    col = mix(col, vec3(0.008, 0.01, 0.013) + n * 0.02, cov);
+    col += vec3(0.25, 0.9, 0.75) * rim * 0.5;
+  }
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -40,11 +53,11 @@ export class Post {
   private readonly final: Pass;
 
   constructor(w: number, h: number) {
-    this.hdr = target(w, h);
+    this.hdr = target(w, h, true, true);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.6, 0.35, 0.92);
     this.final = new Pass(FINAL, {
       src: { value: this.hdr.texture }, res: { value: new THREE.Vector2(w, h) },
-      time: { value: 0 }, flash: { value: 0 },
+      time: { value: 0 }, flash: { value: 0 }, curtain: { value: 1 },
     });
   }
 
@@ -56,7 +69,8 @@ export class Post {
 
   set strength(v: number) { this.bloom.strength = v; }
 
-  render(r: THREE.WebGLRenderer, time: number, flash: number) {
+  render(r: THREE.WebGLRenderer, time: number, flash: number, curtain = 1) {
+    this.final.u.curtain.value = curtain;
     this.bloom.render(r, null as unknown as THREE.WebGLRenderTarget, this.hdr, 0, false);
     this.final.u.time.value = time;
     this.final.u.flash.value = flash;
