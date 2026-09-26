@@ -45,7 +45,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: view, deviceScaleFactor: view.deviceScaleFactor });
 page.on('console', (m) => console.log('  page:', m.text()));
 page.on('pageerror', (e) => console.log('  ERROR:', e.message));
-await page.goto(`http://127.0.0.1:${server.address().port}/yuragi/?dpr=${args.dpr ?? 1}`);
+await page.goto(`http://127.0.0.1:${server.address().port}/yuragi/?dpr=${args.dpr ?? 1}&${args.q ?? ""}`);
 await page.waitForFunction(() => document.body.classList.contains('ready'), null, { timeout: 120000 });
 
 const clock = () => page.evaluate(() => window.yuragi.clock);

@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#020304"/><circle cx="24" cy="30" r="6" fill="#40ffc0"/><circle cx="40" cy="29" r="6" fill="#40ffc0"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <filter id="b" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="3" seed="7"/><feDisplacementMap in="SourceGraphic" scale="7"/></filter>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#c9cdcd"/>
+  <g filter="url(#b)">
+    <path d="M32 9c-5 11-15 18-15 30a15 15 0 0 0 30 0C47 27 37 20 32 9z" fill="#0b0e11"/>
+    <circle cx="14" cy="48" r="3.2" fill="#0b0e11"/><circle cx="50" cy="17" r="2.2" fill="#0b0e11"/>
+  </g>
+  <path d="M26 40c3 4 9 5 13 1" stroke="#3dffc0" stroke-width="2" fill="none" stroke-linecap="round" opacity=".85"/>
+</svg>

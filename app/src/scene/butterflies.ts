@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG } from '../config';
 import type { World } from './common';
 
 /**
@@ -9,26 +10,50 @@ const WING_VERT = /* glsl */ `
 varying vec2 vP;
 void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
+/**
+ * アゲハの翅（片側）。x は体から翅先へ 0..1、y は前 +1 / 後ろ -1。
+ * 前翅は尖った三角、後翅は波打つ縁と尾状突起。硝子のように透け、縁と脈が光る。
+ */
 const WING_FRAG = /* glsl */ `
 varying vec2 vP;
 uniform float alpha, hue, time, flash;
-float ell(vec2 p, vec2 c, vec2 r, float a) {
-  p -= c; float cs = cos(a), sn = sin(a);
-  p = mat2(cs, -sn, sn, cs) * p;
-  return length(p / r) - 1.0;
+float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)); }
+float tri(vec2 p, vec2 a, vec2 b, vec2 c) {
+  vec2 e0 = b - a, e1 = c - b, e2 = a - c;
+  vec2 v0 = p - a, v1 = p - b, v2 = p - c;
+  vec2 pq0 = v0 - e0 * clamp(dot(v0, e0) / dot(e0, e0), 0.0, 1.0);
+  vec2 pq1 = v1 - e1 * clamp(dot(v1, e1) / dot(e1, e1), 0.0, 1.0);
+  vec2 pq2 = v2 - e2 * clamp(dot(v2, e2) / dot(e2, e2), 0.0, 1.0);
+  float s = sign(e0.x * e2.y - e0.y * e2.x);
+  vec2 d = min(min(vec2(dot(pq0, pq0), s * (v0.x * e0.y - v0.y * e0.x)),
+                   vec2(dot(pq1, pq1), s * (v1.x * e1.y - v1.y * e1.x))),
+                   vec2(dot(pq2, pq2), s * (v2.x * e2.y - v2.y * e2.x)));
+  return -sqrt(d.x) * sign(d.y);
 }
 void main() {
-  vec2 p = vP; // x: 0..1（体から翅の先）, y: -1..1
-  float fore = ell(p, vec2(0.5, 0.3), vec2(0.52, 0.4), 0.55);
-  float hind = ell(p, vec2(0.38, -0.34), vec2(0.36, 0.32), -0.45);
-  float d = min(fore, hind);
-  float inside = smoothstep(0.05, -0.04, d);
-  if (inside < 0.01 && d > 0.25) discard;
-  float edge = exp(-pow(d / 0.05, 2.0));
-  float veins = pow(abs(sin(atan(p.y, p.x) * 8.0 + p.x * 3.0)), 14.0) * inside;
-  vec3 irid = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + hue + p.x * 0.7 + p.y * 0.3 + time * 0.08));
-  vec3 glass = mix(vec3(0.35, 0.95, 0.9), irid, 0.6);
-  vec3 col = glass * inside * 0.28 + vec3(1.0, 0.86, 0.55) * edge * 1.2 + glass * veins * 0.7;
+  vec2 p = vP;
+  // 前翅：付け根から前上へ伸びる尖った三角（角を丸める）
+  float fore = tri(p, vec2(0.02, 0.12), vec2(0.98, 0.78), vec2(0.62, -0.08)) - 0.035;
+  // 後翅：丸みのある扇＋波打つ縁
+  vec2 h = p - vec2(0.28, -0.3);
+  float ang = atan(h.y, h.x);
+  float hind = length(h / vec2(0.36, 0.42)) - 1.0 + 0.05 * sin(ang * 9.0);
+  hind /= 3.0;
+  // 尾状突起
+  float tail = seg(p, vec2(0.36, -0.62), vec2(0.42, -1.0)) - 0.045;
+  float d = min(min(fore, hind), tail);
+  float inside = smoothstep(0.012, -0.012, d);
+  if (inside < 0.01 && d > 0.08) discard;
+  float edge = exp(-pow(d / 0.018, 2.0));
+  // 翅脈：付け根から放射
+  float a = atan(p.y - 0.02, p.x);
+  float veins = pow(abs(sin(a * 11.0)), 30.0) * inside * smoothstep(0.1, 0.4, length(p));
+  // 縁に並ぶ斑（アゲハらしさ）
+  float band = smoothstep(0.1, 0.0, abs(d + 0.07)) * inside;
+  float spots = band * step(0.5, fract(a * 4.0 + 0.25));
+  vec3 irid = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + hue + p.x * 0.7 + p.y * 0.35 + time * 0.07));
+  vec3 glass = mix(vec3(0.4, 0.95, 0.9), irid, 0.55);
+  vec3 col = glass * inside * 0.16 + glass * veins * 0.8 + vec3(1.0, 0.86, 0.55) * edge * 1.1 + vec3(1.0, 0.85, 0.5) * spots * 0.5;
   col *= alpha * (1.0 + flash);
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -63,7 +88,8 @@ export class Butterflies {
     const L = new THREE.Mesh(this.wing, mat), R = new THREE.Mesh(this.wing, mat);
     R.scale.x = -1;
     const root = new THREE.Group();
-    const size = 0.065 + Math.random() * 0.04;
+    const [s0, s1] = CONFIG.butterflies.size;
+    const size = s0 + Math.random() * (s1 - s0);
     root.scale.setScalar(size);
     const inner = new THREE.Group();
     inner.rotation.x = Math.PI / 2 - 0.35; // 翅の前縁を進行方向へ、体はやや起こす
@@ -74,7 +100,7 @@ export class Butterflies {
     const pos = at ? at.clone() : new THREE.Vector3(side * 1.8, -0.6 + Math.random() * 1.4, -0.2 + Math.random() * 0.8);
     this.flies.push({
       root, L, R, mat, pos, vel: new THREE.Vector3(-side * 0.2, 0.05, 0), goal: this.goal(),
-      phase: Math.random() * 10, freq: 6 + Math.random() * 3, age: 0,
+      phase: Math.random() * 10, freq: 2.8 + Math.random() * 1.2, age: 0,
       life: ambient ? 1e9 : 10 + Math.random() * 6, glide: 0, seed: Math.random() * 100, ambient,
     });
     this.group.add(root);
@@ -104,7 +130,7 @@ export class Butterflies {
       f.root.position.copy(f.pos);
       const look = f.pos.clone().add(f.vel.lengthSq() > 1e-6 ? f.vel : new THREE.Vector3(0, 0, 1));
       f.root.lookAt(look);
-      const open = 0.15 + 1.25 * (0.5 + 0.5 * flap);
+      const open = 0.1 + 1.35 * (0.5 + 0.5 * flap);
       f.L.rotation.y = -open; f.R.rotation.y = open;
 
       const fadeIn = Math.min(1, f.age / 1.5), fadeOut = Math.min(1, (f.life - f.age) / 2);

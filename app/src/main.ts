@@ -7,6 +7,8 @@ import { Girl } from './scene/girl';
 import { Glitter } from './scene/glitter';
 import { Ink } from './scene/ink';
 import { Ribbons } from './scene/ribbons';
+import { Smoke } from './scene/smoke';
+import { CONFIG } from './config';
 
 const q = new URLSearchParams(location.search);
 const DPR = Math.min(Number(q.get('dpr')) || window.devicePixelRatio || 1, 2);
@@ -20,11 +22,12 @@ stage.appendChild(renderer.domElement);
 
 const loader = new THREE.TextureLoader();
 const base = import.meta.env.BASE_URL;
-const [girlTex, regionTex] = await Promise.all([
+const [girlTex, regionTex, auraTex] = await Promise.all([
   loader.loadAsync(`${base}assets/girl.webp`),
   loader.loadAsync(`${base}assets/regions.png`),
+  loader.loadAsync(`${base}assets/aura.png`),
 ]);
-for (const t of [girlTex, regionTex]) { t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; }
+for (const t of [girlTex, regionTex, auraTex]) { t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; }
 girlTex.anisotropy = 4;
 
 const scene = new THREE.Scene();
@@ -32,12 +35,12 @@ const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
 const world: World = { time: 0, wind: { x: 0, z: 0 }, touch: { x: 0, y: 0, z: 0.3, s: 0 }, reveal: 0 };
 
 const ink = new Ink();
-const girl = new Girl(girlTex, regionTex);
+const girl = new Girl(girlTex, regionTex, auraTex);
+const smoke = new Smoke(auraTex);
 const ribbons = new Ribbons();
 const glitter = new Glitter();
 const flies = new Butterflies();
-scene.add(ink.group, girl.mesh, ribbons.group, glitter.points, flies.group);
-ink.settle();
+scene.add(ink.group, smoke.group, girl.mesh, ribbons.group, glitter.points, flies.group);
 
 let W = 1, H = 1;
 const post = new Post(1, 1);
@@ -128,6 +131,8 @@ window.addEventListener('pointercancel', release);
 let gustT = -1, gustDur = 6, gustDir = 1, nextGust = 12 + Math.random() * 8;
 let nextFly = 5, nextSwarm = 120 + Math.random() * 60;
 const wind = { x: 0, z: 0, vx: 0, vz: 0 };
+const rand = ([a, b]: [number, number]) => a + Math.random() * (b - a);
+let surge = 0, surgeT = -1, surgeLen = 8, nextSurge = rand(CONFIG.light.surgeEvery) * 0.6;
 function rhythm(dt: number) {
   const t = world.time;
   // 常にそよぐ風（ゆっくり、複数の周期）
@@ -150,7 +155,20 @@ function rhythm(dt: number) {
   world.wind.x = THREE.MathUtils.clamp(wind.x, -1.3, 1.3);
   world.wind.z = THREE.MathUtils.clamp(wind.z, -1, 1);
 
-  if (t > nextFly && flies.count < 7) { flies.spawn(undefined, flies.count < 4); nextFly = t + 6 + Math.random() * 10; }
+  // 光の高まり：ふだんは細く、ときどき満ちる
+  if (t > nextSurge && surgeT < 0) {
+    surgeT = 0;
+    surgeLen = rand(CONFIG.light.surgeLength);
+    nextSurge = t + rand(CONFIG.light.surgeEvery);
+  }
+  if (surgeT >= 0) {
+    surgeT += dt;
+    surge = Math.min(1, surgeT / 2.5) * Math.min(1, Math.max(0, (surgeLen - surgeT) / 3.5));
+    if (surgeT > surgeLen) { surgeT = -1; surge = 0; }
+  }
+
+  const amb = CONFIG.butterflies.ambient;
+  if (t > nextFly && flies.count < amb + 3) { flies.spawn(undefined, flies.count < amb); nextFly = t + 6 + Math.random() * 10; }
   if (t > nextSwarm) { for (let i = 0; i < 5; i++) flies.spawn(); nextSwarm = t + 120 + Math.random() * 90; }
 
   for (const p of pointers.values()) {
@@ -182,9 +200,10 @@ function frame(now: number) {
 
   updateCamera(t);
   ink.update(world, real, camera);
-  girl.update(t, world.wind, ease((t - 1.6) / 4.5), 0.6 + 0.4 * Math.sin(t * 0.4));
-  ribbons.update(world, 1 + flash * 0.8);
-  glitter.update(world, H * 1.0, burst);
+  girl.update(t, world.wind, ease((t - 1.6) / 4.5), CONFIG.light.rim * (0.5 + 0.5 * surge + 0.3 * Math.sin(t * 0.4)));
+  smoke.update(t, world.wind, ease((t - 2.2) / 4));
+  ribbons.update(world, Math.min(1, surge + flash * 0.6));
+  glitter.update(world, H * 1.0, burst, CONFIG.light.glitter * (1 + surge * 0.6));
   flies.update(world, real, flash);
 
   title.classList.toggle('on', t > 4.5 && t < 12);
@@ -194,7 +213,7 @@ function frame(now: number) {
   renderer.setRenderTarget(post.hdr);
   renderer.clear();
   renderer.render(scene, camera);
-  post.strength = 0.75 + flash * 0.5;
+  post.strength = 0.55 + surge * 0.25 + flash * 0.5;
   post.render(renderer, t, flash, curtain);
   requestAnimationFrame(frame);
 }

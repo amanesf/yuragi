@@ -9,7 +9,7 @@ const N = 7000;
 
 const VERT = /* glsl */ `
 attribute vec4 seed;
-uniform float time, px, reveal, burst;
+uniform float time, px, reveal, burst, level;
 uniform vec2 wind;
 uniform vec4 touch;
 varying vec3 vCol;
@@ -35,7 +35,7 @@ void main() {
   float tw = 0.5 + 0.5 * sin(time * (1.5 + 5.0 * fract(seed.z * 9.0)) + seed.w * 50.0);
   vCol = fract(seed.y * 5.3) < 0.45 ? vec3(1.0, 0.78, 0.4) : (fract(seed.y * 5.3) < 0.8 ? vec3(0.35, 1.0, 0.8) : vec3(0.85, 0.95, 1.0));
   float edge = smoothstep(1.7, 1.3, abs(y));
-  vA = tw * edge * smoothstep(seed.x * 0.7, seed.x * 0.7 + 0.3, reveal) * (0.5 + f * 2.0);
+  vA = level * tw * edge * smoothstep(seed.x * 0.7, seed.x * 0.7 + 0.3, reveal) * (0.5 + f * 2.0);
 }`;
 
 const FRAG = /* glsl */ `
@@ -61,7 +61,7 @@ export class Glitter {
     this.mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
-        time: { value: 0 }, px: { value: 1000 }, reveal: { value: 0 }, burst: { value: 0 },
+        time: { value: 0 }, px: { value: 1000 }, reveal: { value: 0 }, burst: { value: 0 }, level: { value: 1 },
         wind: { value: new THREE.Vector2() }, touch: { value: new THREE.Vector4() },
       },
       blending: THREE.AdditiveBlending, depthTest: true, depthWrite: false, transparent: true,
@@ -71,8 +71,9 @@ export class Glitter {
     this.points.renderOrder = 30;
   }
 
-  update(w: World, pxScale: number, burst: number) {
+  update(w: World, pxScale: number, burst: number, level: number) {
     const u = this.mat.uniforms;
+    u.level.value = level;
     u.time.value = w.time; u.px.value = pxScale; u.reveal.value = w.reveal; u.burst.value = burst;
     (u.wind.value as THREE.Vector2).set(w.wind.x, w.wind.z);
     (u.touch.value as THREE.Vector4).set(w.touch.x, w.touch.y, w.touch.z, w.touch.s);

@@ -36,4 +36,29 @@ for (let i = 0; i < W * H; i++) {
 }
 await sharp(w, { raw: { width: W, height: H, channels: 3 } })
   .resize(Math.round(W / 4), Math.round(H / 4)).blur(3).png().toFile(OUT + 'regions.png');
+
+// aura.png：輪郭が墨に溶けるための地図（少女の板より 1.3 倍広い範囲を覆う）
+//  R = 近いぼかしのシルエット、G = 遠いぼかしのシルエット、B = 溶かしてよい度合い（袖・裾・毛先）
+const AW = 240, AH = Math.round(AW * H / W);
+const IW = Math.round(AW / 1.3), IH = Math.round(AH / 1.3);
+const L = Math.floor((AW - IW) / 2), T = Math.floor((AH - IH) / 2);
+// sharp は一つのパイプラインで resize を一度しか効かせないので、二段に分ける
+const pad = async (img) => sharp(await sharp(img).resize(IW, IH, { fit: 'fill' }).png().toBuffer())
+  .extend({ top: T, bottom: AH - IH - T, left: L, right: AW - IW - L, background: '#000' });
+const sil = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).extractChannel(3).png().toBuffer();
+const near = await (await pad(sil)).blur(3).extractChannel(0).raw().toBuffer();
+const far = await (await pad(sil)).blur(12).extractChannel(0).raw().toBuffer();
+// 溶かしてよい度合い：袖・袴は下ほど、髪は毛先ほど。頭は 0。
+const dis = Buffer.alloc(W * H);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const i = y * W + x;
+  const hair = w[i * 3] / 255, skirt = w[i * 3 + 1] / 255, sleeve = w[i * 3 + 2] / 255;
+  const s = (a, b, v) => Math.max(0, Math.min(1, (v - a) / (b - a)));
+  const v = Math.max(hair * s(500, 1000, y), sleeve * s(480, 800, y), skirt * s(850, 1300, y) * 0.9);
+  dis[i] = Math.round(v * 255);
+}
+const disB = await (await pad(await sharp(dis, { raw: { width: W, height: H, channels: 1 } }).png().toBuffer())).blur(14).extractChannel(0).raw().toBuffer();
+const aura = Buffer.alloc(AW * AH * 3);
+for (let i = 0; i < AW * AH; i++) aura.set([near[i], far[i], disB[i]], i * 3);
+await sharp(aura, { raw: { width: AW, height: AH, channels: 3 } }).png().toFile(OUT + 'aura.png');
 console.log('ok', W, H);

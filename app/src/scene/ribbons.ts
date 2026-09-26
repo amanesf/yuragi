@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG } from '../config';
 import type { World } from './common';
 
 /**
@@ -11,7 +12,7 @@ const SEG = 260;
 const VERT = /* glsl */ `
 attribute float s;
 attribute float side;
-uniform float time, seed, turns, radius, y0, y1, width, speed, reveal;
+uniform float time, seed, turns, radius, y0, y1, width, speed, reveal, widthScale;
 uniform vec2 wind;
 uniform vec4 touch;
 varying float vS, vSide, vFade;
@@ -36,7 +37,7 @@ void main() {
   vec3 wp = (modelMatrix * vec4(p, 1.0)).xyz;
   vec3 v = normalize(cameraPosition - wp);
   vec3 n = normalize(cross(t, v));
-  float w = width * pow(sin(3.1416 * s), 0.6) * (0.6 + 0.4 * sin(s * 11.0 + time * 0.8 + seed * 9.0));
+  float w = width * widthScale * pow(sin(3.1416 * s), 0.6) * (0.6 + 0.4 * sin(s * 11.0 + time * 0.8 + seed * 9.0));
   p += n * side * w;
   vFade = smoothstep(s, s + 0.08, reveal * 1.1);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
@@ -96,7 +97,7 @@ export class Ribbons {
           turns: { value: 0.7 + Math.random() * 0.8 }, radius: { value: 0.45 + Math.random() * 0.55 },
           y0: { value: low ? -1.25 : -0.6 }, y1: { value: low ? 0.1 + Math.random() * 0.4 : 0.95 },
           width: { value: 0.06 + Math.random() * 0.07 }, speed: { value: (i % 2 ? 1 : -1) * (0.05 + Math.random() * 0.07) },
-          reveal: { value: 0 }, intensity: { value: 1 },
+          reveal: { value: 0 }, intensity: { value: 1 }, widthScale: { value: 1 },
           wind: { value: new THREE.Vector2() }, touch: { value: new THREE.Vector4() },
           colA: { value: new THREE.Color(a) }, colB: { value: new THREE.Color(b) },
         },
@@ -110,12 +111,18 @@ export class Ribbons {
     });
   }
 
-  update(w: World, intensity: number) {
-    for (const m of this.mats) {
+  /**
+   * surge 0→1：ふだんは細い 4 本だけ、高まると残りの帯も現れ、太く明るくなる。
+   */
+  update(w: World, surge: number) {
+    const lvl = CONFIG.light.base + (CONFIG.light.surge - CONFIG.light.base) * surge;
+    this.mats.forEach((m, i) => {
       const u = m.uniforms;
-      u.time.value = w.time; u.reveal.value = w.reveal; u.intensity.value = intensity;
+      const extra = i >= 4 ? surge : 1;
+      u.time.value = w.time; u.reveal.value = w.reveal; u.intensity.value = lvl * extra;
+      u.widthScale.value = 0.45 + 0.55 * surge;
       (u.wind.value as THREE.Vector2).set(w.wind.x, w.wind.z);
       (u.touch.value as THREE.Vector4).set(w.touch.x, w.touch.y, w.touch.z, w.touch.s);
-    }
+    });
   }
 }
