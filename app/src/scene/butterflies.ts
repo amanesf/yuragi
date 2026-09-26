@@ -78,8 +78,9 @@ export class Butterflies {
     // 画面の中に収まる範囲（顔の真ん前は少し避ける）
     for (;;) {
       // 奥から手前（カメラ寄り）まで。手前ほど画面に広く見えるので横幅も広げる
-      const z = -0.2 + Math.random() * 1.3;
-      const v = new THREE.Vector3((Math.random() - 0.5) * (0.95 + z * 0.5), -0.85 + Math.random() * 1.75, z);
+      // 手前寄りに多く：半分以上はカメラ側（z > 0.6）を飛ぶ
+      const z = Math.random() < 0.6 ? 0.6 + Math.random() * 1.0 : -0.2 + Math.random() * 0.8;
+      const v = new THREE.Vector3((Math.random() - 0.5) * (0.95 - z * 0.3), -0.8 + Math.random() * 1.6, z);
       if (Math.abs(v.x) > 0.18 || v.y < 0.4) return v;
     }
   }

@@ -178,7 +178,7 @@ function emit(dt: number, strength: number) {
 // ---- 監督：静 → 高まり → 余韻 ----
 const rand = ([a, b]: [number, number]) => a + Math.random() * (b - a);
 let climax = 0, climaxT = -1, climaxLen = 12, nextClimax = 22 + Math.random() * 15, climaxKick = 0;
-let gustDir = 1, nextFly = 5, nextFlyby = 20 + Math.random() * 20;
+let gustDir = 1, nextFly = 5, nextFlyby = 9 + Math.random() * 6;
 let gustT = -1, gustLen = 4, nextGust = 10 + Math.random() * 6;
 const wind = { x: 0, z: 0, vx: 0, vz: 0 };
 function direct(dt: number) {
@@ -242,7 +242,7 @@ function direct(dt: number) {
   }
 
   emit(dt, (1 + climax * 1.2) * Math.min(1, world.reveal * 2));
-  if (t > nextFlyby && world.reveal > 0.9) { flies.flyby(); nextFlyby = t + 25 + Math.random() * 35; }
+  if (t > nextFlyby && world.reveal > 0.9) { flies.flyby(); nextFlyby = t + 8 + Math.random() * 12; }
 
   const amb = CONFIG.butterflies.ambient;
   if (t > nextFly && flies.count < amb + 3) { flies.spawn(undefined, flies.count < amb); nextFly = t + 6 + Math.random() * 10; }

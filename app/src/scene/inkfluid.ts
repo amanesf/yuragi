@@ -217,7 +217,8 @@ void main() {
   k.g += halo * strand * girlEmit * 2.6 * dt * smoothstep(0.3, 0.7, a.b);
 
   // 下半身は墨に沈む：裾から足元にかけて、濃い墨が湧き続ける（手前 G と後ろ R）
-  float lowY = smoothstep(-0.15, -0.95, w.y) * (1.0 - smoothstep(0.45, 0.75, abs(w.x)));
+  // 胸（y≈0.35）から下へ、なだらかに濃くなる
+  float lowY = pow(smoothstep(0.35, -0.95, w.y), 1.4) * (1.0 - smoothstep(0.5, 0.85, abs(w.x)));
   float poolN = smoothstep(0.42, 0.7, fbm(w * vec2(4.0, 2.5) + vec2(t * 0.05, -t * 0.12)));
   k.g += lowY * poolN * pool * 2.2 * dt;
   k.r += lowY * poolN * pool * 1.6 * dt;

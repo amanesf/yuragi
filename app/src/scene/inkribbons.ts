@@ -62,9 +62,9 @@ void main() {
   // 顔の前では薄く
   d *= smoothstep(0.18, 0.5, length((vW.xy - vec2(0.0, 0.68)) * vec2(1.0, 0.8))) * (vW.z > 0.05 ? 1.0 : 0.85) + 0.0;
   // 暗い背景でも読めるよう、縁は明るい煙色、芯は漆黒
-  float core = smoothstep(0.5, 0.95, d);
-  float rim = smoothstep(0.05, 0.3, d) * (1.0 - smoothstep(0.3, 0.6, d));
-  vec3 col = mix(vec3(0.34, 0.37, 0.39), vec3(0.008, 0.01, 0.014), core) + vec3(0.1, 0.12, 0.12) * rim;
+  // 流体の墨と同じ材質（薄墨→漆黒）
+  float core = smoothstep(0.45, 1.0, d);
+  vec3 col = mix(vec3(0.22, 0.23, 0.24), vec3(0.008, 0.01, 0.014), clamp(core * 1.1 + d * 0.35, 0.0, 1.0));
   float a = clamp(d * opacity * 1.25, 0.0, 0.95);
   if (a < 0.004) discard;
   gl_FragColor = vec4(col * a, a);
@@ -105,7 +105,7 @@ void main() {
   float d = smoothstep(0.5, 0.05, length(c) + (n - 0.5) * 0.5);
   float a = d * vA * opacity;
   if (a < 0.003) discard;
-  vec3 col = mix(vec3(0.3, 0.33, 0.35), vec3(0.03, 0.035, 0.04), d);
+  vec3 col = mix(vec3(0.22, 0.23, 0.24), vec3(0.008, 0.01, 0.014), clamp(d * 1.2, 0.0, 1.0));
   gl_FragColor = vec4(col * a, a);
 }`;
 
